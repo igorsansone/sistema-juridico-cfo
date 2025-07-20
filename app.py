@@ -262,20 +262,6 @@ def inicio():
     else:
         st.info("Nenhum processo cadastrado.")
 
-    # Botão para exportar processos em Excel
-    if processos:
-        df_export = pd.DataFrame(processos)
-        towrite = BytesIO()
-        df_export.to_excel(towrite, index=False, sheet_name='Processos')
-        towrite.seek(0)
-        st.download_button(
-            label="📥 Exportar Processos para Excel",
-            data=towrite,
-            file_name="processos.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-
 def cadastro_processo():
     st.title("📝 Cadastro / Edição de Processo")
 
@@ -352,80 +338,106 @@ def cadastro_jurisprudencia():
         })
         st.success("Jurisprudência cadastrada com sucesso!")
 
-def movimentacoes():
-    st.title("🔄 Movimentações Processuais")
-    with st.form("form_movimentacoes"):
-        numero = st.text_input("Número do Processo")
-        descricao = st.text_area("Descrição da Movimentação")
-        prazo = st.date_input("Prazo", value=datetime.today())
-        enviar = st.form_submit_button("Registrar Movimentação")
+def area_despachos():
+    st.title("📨 Área de Despachos")
+
+    if not st.session_state.processos:
+        st.warning("Nenhum processo cadastrado. Cadastre um processo antes de adicionar despachos.")
+        return
+
+    numeros_processos = [p["Número"] for p in st.session_state.processos]
+
+    with st.form("form_despachos"):
+        numero = st.selectbox("Número do Processo", options=numeros_processos)
+        despacho = st.text_area("Despacho")
+        enviar = st.form_submit_button("Salvar Despacho")
+
     if enviar:
-        st.session_state.movimentacoes.append({
+        st.session_state.despachos.append({
             "Número": numero,
-            "Descrição": descricao,
-            "Prazo": prazo.strftime("%d/%m/%Y")
+            "Despacho": despacho,
+            "Usuário": st.session_state.usuario_logado,
+            "Data": datetime.now().strftime("%d/%m/%Y %H:%M")
         })
-        st.success("Movimentação registrada com sucesso!")
+        st.success("Despacho cadastrado!")
 
-def agenda_eventos():
-    st.title("📅 Agenda de Eventos")
-    with st.form("form_agenda"):
-        data = st.date_input("Data do Evento", value=datetime.today())
-        evento = st.text_input("Evento")
-        descricao = st.text_area("Descrição")
-        enviar = st.form_submit_button("Salvar Evento")
-    if enviar:
-        st.session_state.agenda.append({
-            "Data": data.strftime("%d/%m/%Y"),
-            "Evento": evento,
-            "Descrição": descricao
-        })
-        st.success("Evento cadastrado com sucesso!")
+def area_movimentacoes():
+    st.title("📂 Movimentações dos Processos")
 
-def relatorios():
-    st.title("📊 Relatórios")
-    st.write("Funcionalidade de relatórios a ser implementada...")
+    if not st.session_state.processos:
+        st.warning("Cadastre processos para adicionar movimentações.")
+        return
 
-def rodape():
-    st.markdown(
-        """
-        <div class="footer">Desenvolvido por Igor Sansone - Setor de Secretaria</div>
-        """, 
-        unsafe_allow_html=True
-    )
+    numeros = [p["Número"] for p in st.session_state.processos]
+
+    abas = st.tabs(["Cadastrar Movimentação", "Visualizar Movimentações"])
+
+    with abas[0]:
+        with st.form("form_movimentacao"):
+            numero = st.selectbox("Número do Processo", options=numeros)
+            descricao = st.text_area("Descrição da Movimentação")
+            prazo = st.date_input("Prazo", value=datetime.today())
+            enviar = st.form_submit_button("Salvar Movimentação")
+
+        if enviar:
+            mov = {
+                "Número": numero,
+                "Descrição": descricao,
+                "Prazo": prazo.strftime("%d/%m/%Y"),
+                "Usuário": st.session_state.usuario_logado
+            }
+            st.session_state.movimentacoes.append(mov)
+            st.success("Movimentação cadastrada!")
+
+    with abas[1]:
+        if st.session_state.movimentacoes:
+            df = pd.DataFrame(st.session_state.movimentacoes)
+            st.dataframe(df)
+        else:
+            st.info("Nenhuma movimentação cadastrada.")
 
 def main():
     if not st.session_state.logado:
         tela_login()
-    else:
-        with st.sidebar:
-            selected = option_menu(
-                "Menu Principal",
-                ["Início", "Cadastro Processo", "Cadastro Jurisprudência", "Movimentações", "Agenda", "Relatórios", "Sair"],
-                icons=["house", "file-earmark-text", "book", "arrow-repeat", "calendar", "bar-chart-line", "box-arrow-right"],
-                menu_icon="cast",
-                default_index=0,
-            )
-        if selected == "Início":
-            inicio()
-        elif selected == "Cadastro Processo":
-            cadastro_processo()
-        elif selected == "Cadastro Jurisprudência":
-            cadastro_jurisprudencia()
-        elif selected == "Movimentações":
-            movimentacoes()
-        elif selected == "Agenda":
-            agenda_eventos()
-        elif selected == "Relatórios":
-            relatorios()
-        elif selected == "Sair":
-            st.session_state.logado = False
-            st.session_state.usuario_logado = None
-            st.experimental_rerun()
+        return
 
-        rodape()
+    menu = option_menu(
+        menu_title=None,
+        options=["Início", "Cadastro Processo", "Jurisprudência", "Despachos", "Movimentações", "Sair"],
+        icons=["house", "file-earmark-text", "book", "envelope", "folder", "box-arrow-right"],
+        menu_icon="list",
+        default_index=0,
+        orientation="horizontal",
+        styles={
+            "container": {"padding": "0!important", "background-color": "#0B3D91"},
+            "nav-link": {"font-size": "16px", "text-align": "center", "margin": "0px", "--hover-color": "#eee"},
+            "nav-link-selected": {"background-color": "#FFC107"},
+        },
+    )
 
-        st.markdown('<div class="footer">Desenvolvido por Igor Sansone - Setor de Secretaria - Para uso do Conselho Federal de Odontologia</div>', unsafe_allow_html=True)
+    if menu == "Início":
+        inicio()
+    elif menu == "Cadastro Processo":
+        cadastro_processo()
+    elif menu == "Jurisprudência":
+        cadastro_jurisprudencia()
+    elif menu == "Despachos":
+        area_despachos()
+    elif menu == "Movimentações":
+        area_movimentacoes()
+    elif menu == "Sair":
+        st.session_state.logado = False
+        st.session_state.usuario_logado = None
+        st.experimental_rerun()
+
+    st.markdown(
+        """
+        <div class="footer">
+        Desenvolvido por Igor Sansone - Setor de Secretaria CRORS- Para uso do Conselho Federal de Odontologia
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 if __name__ == "__main__":
     main()
