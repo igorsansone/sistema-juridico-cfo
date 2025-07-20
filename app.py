@@ -326,16 +326,55 @@ def cadastro_processo():
 
 def cadastro_jurisprudencia():
     st.title("📚 Cadastro de Jurisprudência")
+
+    # Campo para cadastro
     with st.form("form_jurisprudencia"):
         numero = st.text_input("Número")
         descricao = st.text_area("Descrição")
+        palavras_chave = st.text_input("Palavras-chave (separadas por vírgula)")
         enviar = st.form_submit_button("Salvar Jurisprudência")
+
     if enviar:
+        # Limpar espaços das palavras-chave e salvar como lista
+        lista_palavras = [p.strip().lower() for p in palavras_chave.split(",") if p.strip()]
         st.session_state.jurisprudencias.append({
             "Número": numero,
-            "Descrição": descricao
+            "Descrição": descricao,
+            "Palavras-chave": lista_palavras
         })
         st.success("Jurisprudência cadastrada com sucesso!")
+
+    st.markdown("---")
+    st.subheader("🔎 Buscar Jurisprudências")
+
+    termo_pesquisa = st.text_input("Digite termo para busca (número, descrição ou palavra-chave)")
+    botao_pesquisar = st.button("Pesquisar")
+
+    # Inicializa lista para exibir resultados
+    resultados = []
+
+    if botao_pesquisar and termo_pesquisa.strip():
+        termo = termo_pesquisa.strip().lower()
+        for jur in st.session_state.jurisprudencias:
+            numero = jur.get("Número", "").lower()
+            descricao = jur.get("Descrição", "").lower()
+            palavras = jur.get("Palavras-chave", [])
+            if (termo in numero) or (termo in descricao) or (any(termo in p for p in palavras)):
+                resultados.append(jur)
+        if not resultados:
+            st.info("Nenhuma jurisprudência encontrada para o termo pesquisado.")
+    else:
+        # Se não pesquisou, mostra todas cadastradas
+        resultados = st.session_state.jurisprudencias
+
+    if resultados:
+        for i, jur in enumerate(resultados):
+            st.markdown(f"### Jurisprudência {i+1}")
+            st.write(f"**Número:** {jur.get('Número', '')}")
+            st.write(f"**Descrição:** {jur.get('Descrição', '')}")
+            st.write(f"**Palavras-chave:** {', '.join(jur.get('Palavras-chave', []))}")
+            st.markdown("---")
+
 
 def despachos():
     st.title("🗂️ Despachos")
