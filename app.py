@@ -5,8 +5,6 @@ from streamlit_option_menu import option_menu
 import altair as alt
 import streamlit.components.v1 as components
 from io import BytesIO
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
 
 # Função para forçar rerun (usar se precisar)
 def forcar_rerun():
