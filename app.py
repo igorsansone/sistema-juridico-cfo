@@ -5,18 +5,18 @@ from streamlit_option_menu import option_menu
 import altair as alt
 import streamlit.components.v1 as components
 from io import BytesIO
-from fpdf import FPDF  # substitui reportlab por fpdf para geração de PDF
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 
-# Função para forçar rerun (se necessário)
+# Função para forçar rerun (usar se precisar)
 def forcar_rerun():
     params = st.experimental_get_query_params()
-    count = int(params.get("count", [0])[0])
+    count = int(params["count"][0]) if "count" in params else 0
     st.experimental_set_query_params(count=str(count + 1))
 
-# Configurações gerais da página
-st.set_page_config(layout="wide", page_title="Sistema Jurídico CFO")
+st.set_page_config(layout="wide", page_title="Processos Eleição CROS 2025 - CFO")
 
-# CSS customizado
+# CSS customizado (mantém o seu estilo)
 def aplicar_css():
     st.markdown("""
     <style>
@@ -42,7 +42,32 @@ def aplicar_css():
     """, unsafe_allow_html=True)
 aplicar_css()
 
-# Listas fixas para selects
+# Detecta dispositivo para eventuais ajustes (opcional)
+def detectar_dispositivo():
+    if "dispositivo" not in st.session_state:
+        dispositivo = st.text_input("dispositivo_input", value="", key="dispositivo_input", label_visibility="hidden")
+        js_code = """
+        <script>
+        const input = window.parent.document.querySelector('input#dispositivo_input');
+        function getDeviceType() {
+            const ua = navigator.userAgent;
+            if(/Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(ua)){
+                return "mobile";
+            }
+            return "desktop";
+        }
+        input.value = getDeviceType();
+        input.dispatchEvent(new Event('input'));
+        </script>
+        """
+        components.html(js_code, height=0)
+        if dispositivo in ("mobile", "desktop"):
+            st.session_state.dispositivo = dispositivo
+            st.experimental_rerun()
+
+detectar_dispositivo()
+
+# Listas fixas para selectboxes
 tipos_acao = [
     "", "Ação Civil Pública", "Ação Popular", "Ação de Improbidade Administrativa", "Mandado de Segurança",
     "Ação Declaratória de Nulidade de Ato Administrativo", "Ação Anulatória de Ato Administrativo",
@@ -69,7 +94,7 @@ recursos = [
 
 locais_ajuizamento = ["", "JF", "TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6", "STJ", "STF"]
 
-# Inicialização de session_state
+# Inicialização das session states usados
 if "logado" not in st.session_state:
     st.session_state.logado = False
 if "usuario_logado" not in st.session_state:
@@ -94,7 +119,7 @@ if "autores" not in st.session_state:
 if "reus" not in st.session_state:
     st.session_state.reus = [{"nome": "", "cpf_cnpj": ""}]
 
-# Funções auxiliares de login e permissões
+# Funções básicas
 def validar_login(usuario, senha):
     for u in st.session_state.usuarios:
         if u["usuario"] == usuario and u["senha"] == senha:
@@ -108,7 +133,8 @@ def usuario_eh_master():
             return u["permissao"] == "master"
     return False
 
-# Tela de Login
+# --- Telas ---
+
 def tela_login():
     st.title("🔐 Login - Sistema Jurídico CFO")
     with st.form("form_login"):
@@ -125,7 +151,6 @@ def tela_login():
         else:
             st.error("Usuário ou senha inválidos.")
 
-# Tela inicial com painéis e gráficos
 def inicio():
     st.title("🏠 Painel Inicial - CFO Jurídico")
 
@@ -135,16 +160,19 @@ def inicio():
 
     hoje = pd.Timestamp(datetime.today().date())
 
-    # Filtros sidebar
+    # --- FILTROS ---
     st.sidebar.subheader("Filtros - Página Inicial")
+
     prazo_filtro = st.sidebar.slider("Prazos a vencer nos próximos dias:", min_value=1, max_value=60, value=30)
+
     tribunais_oficiais = ["JF", "TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6"]
     tribunais_selecionados = st.sidebar.multiselect("Tribunais para o quantitativo:", options=tribunais_oficiais, default=tribunais_oficiais)
+
     st.sidebar.markdown("---")
     st.sidebar.write(f"Usuário logado: **{st.session_state.usuario_logado}**")
 
-    # Próximas reuniões
     st.subheader("📅 Próximas Reuniões")
+
     if agenda:
         df_agenda = pd.DataFrame(agenda)
         df_agenda["Data"] = pd.to_datetime(df_agenda["Data"], format="%d/%m/%Y", errors='coerce')
@@ -165,11 +193,12 @@ def inicio():
 
     st.markdown("---")
 
-    # Prazos a vencer
     st.subheader("⏳ Prazos a Vencer")
+
     if movs and processos:
         df_movs = pd.DataFrame(movs)
         df_movs["Prazo"] = pd.to_datetime(df_movs["Prazo"], format="%d/%m/%Y", errors='coerce')
+
         filtro_prazo_final = hoje + pd.Timedelta(days=prazo_filtro)
         prazos_abertos = df_movs[(df_movs["Prazo"].notnull()) & (df_movs["Prazo"] >= hoje) & (df_movs["Prazo"] <= filtro_prazo_final)].copy()
 
@@ -186,11 +215,11 @@ def inicio():
 
             def cor_prazo(dias):
                 if dias > 15:
-                    return "background-color: #d4edda"
+                    return "background-color: #d4edda"  # verde claro
                 elif 10 <= dias <= 15:
-                    return "background-color: #fff3cd"
+                    return "background-color: #fff3cd"  # amarelo claro
                 else:
-                    return "background-color: #f8d7da"
+                    return "background-color: #f8d7da"  # vermelho claro
 
             st.dataframe(
                 df_join[["Número", "Assunto", "Prazo", "Descrição", "Dias Restantes"]]
@@ -201,8 +230,8 @@ def inicio():
 
     st.markdown("---")
 
-    # Quantitativo processos por tribunal
     st.subheader("📊 Quantitativo de Processos por Tribunal")
+
     if processos:
         df = pd.DataFrame(processos)
         if "Local Ajuizamento" in df.columns:
@@ -211,8 +240,8 @@ def inicio():
             contagem_df = contagem.reset_index()
             contagem_df.columns = ["Tribunal", "Quantidade"]
 
-            cores = ["#007BFF", "#28A745", "#FFC107", "#DC3545", "#17A2B8", "#6F42C1", "#FD7E14"]
             cols = st.columns(len(contagem_df))
+            cores = ["#007BFF", "#28A745", "#FFC107", "#DC3545", "#17A2B8", "#6F42C1", "#FD7E14"]
 
             for i, row in contagem_df.iterrows():
                 with cols[i]:
@@ -235,7 +264,20 @@ def inicio():
     else:
         st.info("Nenhum processo cadastrado.")
 
-# Cadastro de processos com autores e réus múltiplos
+    # Botão para exportar processos em Excel
+    if processos:
+        df_export = pd.DataFrame(processos)
+        towrite = BytesIO()
+        df_export.to_excel(towrite, index=False, sheet_name='Processos')
+        towrite.seek(0)
+        st.download_button(
+            label="📥 Exportar Processos para Excel",
+            data=towrite,
+            file_name="processos.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+
+
 def cadastro_processo():
     st.title("📝 Cadastro / Edição de Processo")
 
@@ -299,7 +341,6 @@ def cadastro_processo():
         st.session_state.autores = [{"nome": "", "cpf_cnpj": ""}]
         st.session_state.reus = [{"nome": "", "cpf_cnpj": ""}]
 
-# Cadastro de jurisprudência
 def cadastro_jurisprudencia():
     st.title("📚 Cadastro de Jurisprudência")
     with st.form("form_jurisprudencia"):
@@ -313,115 +354,78 @@ def cadastro_jurisprudencia():
         })
         st.success("Jurisprudência cadastrada com sucesso!")
 
-# Área de Despachos
-def area_despachos():
-    st.title("📨 Área de Despachos")
-
-    if not st.session_state.processos:
-        st.warning("Nenhum processo cadastrado. Cadastre um processo antes de adicionar despachos.")
-        return
-
-    numeros_processos = [p["Número"] for p in st.session_state.processos]
-
-    with st.form("form_despachos"):
-        numero = st.selectbox("Número do Processo", options=numeros_processos)
-        descricao = st.text_area("Descrição do Despacho")
-        data_despacho = st.date_input("Data do Despacho", value=datetime.today())
-        enviar = st.form_submit_button("Adicionar Despacho")
-
-    if enviar:
-        st.session_state.despachos.append({
-            "Número": numero,
-            "Descrição": descricao,
-            "Data": data_despacho.strftime("%d/%m/%Y"),
-            "Quem cadastrou": st.session_state.usuario_logado
-        })
-        st.success("Despacho adicionado com sucesso!")
-
-    # Mostrar lista despachos
-    if st.session_state.despachos:
-        df_despachos = pd.DataFrame(st.session_state.despachos)
-        st.dataframe(df_despachos.sort_values("Data", ascending=False))
-
-# Aba Movimentações com geração de PDF usando fpdf
-def area_movimentacoes():
-    st.title("📄 Movimentações Processuais")
-
-    if not st.session_state.processos:
-        st.warning("Nenhum processo cadastrado.")
-        return
-
-    numeros_processos = [p["Número"] for p in st.session_state.processos]
-
+def movimentacoes():
+    st.title("🔄 Movimentações Processuais")
     with st.form("form_movimentacoes"):
-        numero = st.selectbox("Número do Processo", options=numeros_processos)
+        numero = st.text_input("Número do Processo")
         descricao = st.text_area("Descrição da Movimentação")
-        prazo = st.date_input("Prazo (Data)", value=datetime.today())
-        enviar = st.form_submit_button("Adicionar Movimentação")
-
+        prazo = st.date_input("Prazo", value=datetime.today())
+        enviar = st.form_submit_button("Registrar Movimentação")
     if enviar:
         st.session_state.movimentacoes.append({
             "Número": numero,
             "Descrição": descricao,
-            "Prazo": prazo.strftime("%d/%m/%Y"),
-            "Quem cadastrou": st.session_state.usuario_logado
+            "Prazo": prazo.strftime("%d/%m/%Y")
         })
-        st.success("Movimentação adicionada com sucesso!")
+        st.success("Movimentação registrada com sucesso!")
 
-    if st.session_state.movimentacoes:
-        df_movs = pd.DataFrame(st.session_state.movimentacoes)
-        st.dataframe(df_movs.sort_values("Prazo", ascending=False))
+def agenda_eventos():
+    st.title("📅 Agenda de Eventos")
+    with st.form("form_agenda"):
+        data = st.date_input("Data do Evento", value=datetime.today())
+        evento = st.text_input("Evento")
+        descricao = st.text_area("Descrição")
+        enviar = st.form_submit_button("Salvar Evento")
+    if enviar:
+        st.session_state.agenda.append({
+            "Data": data.strftime("%d/%m/%Y"),
+            "Evento": evento,
+            "Descrição": descricao
+        })
+        st.success("Evento cadastrado com sucesso!")
 
-        # Geração do PDF com fpdf
-        if st.button("Gerar PDF das Movimentações"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", 'B', 14)
-            pdf.cell(0, 10, "Relatório de Movimentações Processuais", 0, 1, 'C')
+def relatorios():
+    st.title("📊 Relatórios")
+    st.write("Funcionalidade de relatórios a ser implementada...")
 
-            pdf.set_font("Arial", size=12)
-            for idx, row in df_movs.iterrows():
-                pdf.cell(0, 10, f"Processo: {row['Número']}", 0, 1)
-                pdf.multi_cell(0, 10, f"Descrição: {row['Descrição']}")
-                pdf.cell(0, 10, f"Prazo: {row['Prazo']}", 0, 1)
-                pdf.cell(0, 10, f"Quem cadastrou: {row['Quem cadastrou']}", 0, 1)
-                pdf.ln(5)
+def rodape():
+    st.markdown(
+        """
+        <div class="footer">Desenvolvido por Igor Sansone - Setor de Secretaria</div>
+        """, 
+        unsafe_allow_html=True
+    )
 
-            pdf_output = BytesIO()
-            pdf.output(pdf_output)
-            pdf_output.seek(0)
-
-            st.download_button(
-                label="Download PDF",
-                data=pdf_output,
-                file_name="movimentacoes.pdf",
-                mime="application/pdf"
-            )
-
-# Menu lateral principal
 def main():
     if not st.session_state.logado:
         tela_login()
     else:
         with st.sidebar:
-            menu = option_menu("Menu", ["Início", "Cadastro de Processos", "Cadastro de Jurisprudência",
-                                        "Despachos", "Movimentações", "Sair"],
-                               icons=["house", "file-earmark-text", "book", "envelope", "file-text", "box-arrow-right"],
-                               menu_icon="cast", default_index=0)
-        if menu == "Início":
+            selected = option_menu(
+                "Menu Principal",
+                ["Início", "Cadastro Processo", "Cadastro Jurisprudência", "Movimentações", "Agenda", "Relatórios", "Sair"],
+                icons=["house", "file-earmark-text", "book", "arrow-repeat", "calendar", "bar-chart-line", "box-arrow-right"],
+                menu_icon="cast",
+                default_index=0,
+            )
+        if selected == "Início":
             inicio()
-        elif menu == "Cadastro de Processos":
+        elif selected == "Cadastro Processo":
             cadastro_processo()
-        elif menu == "Cadastro de Jurisprudência":
+        elif selected == "Cadastro Jurisprudência":
             cadastro_jurisprudencia()
-        elif menu == "Despachos":
-            area_despachos()
-        elif menu == "Movimentações":
-            area_movimentacoes()
-        elif menu == "Sair":
+        elif selected == "Movimentações":
+            movimentacoes()
+        elif selected == "Agenda":
+            agenda_eventos()
+        elif selected == "Relatórios":
+            relatorios()
+        elif selected == "Sair":
             st.session_state.logado = False
             st.session_state.usuario_logado = None
             st.experimental_rerun()
+
+        rodape()
 
         st.markdown('<div class="footer">Desenvolvido por Igor Sansone - Setor de Secretaria - Para uso do Conselho Federal de Odontologia</div>', unsafe_allow_html=True)
 
