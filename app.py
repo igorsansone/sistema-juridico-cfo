@@ -337,106 +337,69 @@ def cadastro_jurisprudencia():
         })
         st.success("Jurisprudência cadastrada com sucesso!")
 
-def area_despachos():
-    st.title("📨 Área de Despachos")
-
-    if not st.session_state.processos:
-        st.warning("Nenhum processo cadastrado. Cadastre um processo antes de adicionar despachos.")
-        return
-
-    numeros_processos = [p["Número"] for p in st.session_state.processos]
-
+def despachos():
+    st.title("🗂️ Despachos")
     with st.form("form_despachos"):
-        numero = st.selectbox("Número do Processo", options=numeros_processos)
-        despacho = st.text_area("Despacho")
-        enviar = st.form_submit_button("Salvar Despacho")
-
+        numero = st.text_input("Número do Processo")
+        descricao = st.text_area("Descrição do Despacho")
+        enviado_por = st.session_state.usuario_logado
+        enviar = st.form_submit_button("Cadastrar Despacho")
     if enviar:
-        novo_despacho = {
-            "Número": numero,
-            "Despacho": despacho,
-            "Data": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-            "Usuário": st.session_state.usuario_logado
-        }
-        st.session_state.despachos.append(novo_despacho)
-        st.success("Despacho registrado com sucesso!")
-
-    # Exibir despachos recentes
-    st.subheader("Despachos Recentes")
-    df_despachos = pd.DataFrame(st.session_state.despachos)
-    if not df_despachos.empty:
-        st.dataframe(df_despachos.sort_values(by="Data", ascending=False).reset_index(drop=True))
-    else:
-        st.info("Nenhum despacho cadastrado.")
-
-def area_movimentacoes():
-    st.title("🔄 Movimentações")
-
-    if not st.session_state.processos:
-        st.warning("Nenhum processo cadastrado. Cadastre um processo antes de adicionar movimentações.")
-        return
-
-    numeros_processos = [p["Número"] for p in st.session_state.processos]
-
-    with st.form("form_movimentacoes"):
-        numero = st.selectbox("Número do Processo", options=numeros_processos)
-        descricao = st.text_area("Descrição da Movimentação")
-        prazo = st.date_input("Prazo (opcional)", value=None)
-        enviar = st.form_submit_button("Salvar Movimentação")
-
-    if enviar:
-        prazo_str = prazo.strftime("%d/%m/%Y") if prazo else ""
-        nova_movimentacao = {
+        st.session_state.despachos.append({
             "Número": numero,
             "Descrição": descricao,
-            "Prazo": prazo_str,
-            "Data": datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
-            "Usuário": st.session_state.usuario_logado
-        }
-        st.session_state.movimentacoes.append(nova_movimentacao)
-        st.success("Movimentação registrada com sucesso!")
+            "Enviado Por": enviado_por,
+            "Data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        })
+        st.success("Despacho cadastrado com sucesso!")
 
-    # Exibir movimentações recentes
-    st.subheader("Movimentações Recentes")
-    df_movs = pd.DataFrame(st.session_state.movimentacoes)
-    if not df_movs.empty:
-        st.dataframe(df_movs.sort_values(by="Data", ascending=False).reset_index(drop=True))
+def movimentacoes():
+    st.title("🔄 Movimentações")
+    menu = option_menu("", ["Cadastrar Movimentação", "Visualizar Movimentações"], 
+                       menu_icon="list-task", default_index=0, orientation="horizontal")
+    
+    if menu == "Cadastrar Movimentação":
+        with st.form("form_movimentacao"):
+            numero = st.text_input("Número do Processo")
+            descricao = st.text_area("Descrição da Movimentação")
+            prazo = st.date_input("Prazo", value=datetime.today())
+            enviar = st.form_submit_button("Salvar Movimentação")
+        if enviar:
+            nova_movimentacao = {
+                "Número": numero,
+                "Descrição": descricao,
+                "Prazo": prazo.strftime("%d/%m/%Y"),
+                "Usuário": st.session_state.usuario_logado
+            }
+            st.session_state.movimentacoes.append(nova_movimentacao)
+            st.success("Movimentação cadastrada com sucesso!")
     else:
-        st.info("Nenhuma movimentação cadastrada.")
+        if st.session_state.movimentacoes:
+            df = pd.DataFrame(st.session_state.movimentacoes)
+            st.dataframe(df)
+        else:
+            st.info("Nenhuma movimentação cadastrada.")
 
-def area_agenda():
-    st.title("📆 Agenda de Eventos")
-
+def agenda():
+    st.title("📅 Agenda de Eventos")
     with st.form("form_agenda"):
-        data_evento = st.date_input("Data do Evento")
-        evento = st.text_input("Nome do Evento")
+        data = st.date_input("Data do Evento")
+        evento = st.text_input("Evento")
         descricao = st.text_area("Descrição")
-        local = st.text_input("Local")
-        modalidade = st.selectbox("Modalidade", options=["Presencial", "Online"])
         enviar = st.form_submit_button("Adicionar Evento")
-
     if enviar:
         novo_evento = {
-            "Data": data_evento.strftime("%d/%m/%Y"),
+            "Data": data.strftime("%d/%m/%Y"),
             "Evento": evento,
-            "Descrição": descricao,
-            "Local": local,
-            "Modalidade": modalidade
+            "Descrição": descricao
         }
         st.session_state.agenda.append(novo_evento)
-        st.success("Evento adicionado à agenda!")
+        st.success("Evento adicionado com sucesso!")
 
-    if st.session_state.agenda:
-        df_agenda = pd.DataFrame(st.session_state.agenda)
-        st.dataframe(df_agenda.sort_values(by="Data").reset_index(drop=True))
-    else:
-        st.info("Nenhum evento na agenda.")
-
-def area_usuarios():
+def gerenciar_usuarios():
     if not usuario_eh_master():
-        st.error("Acesso negado. Apenas usuários master podem acessar esta área.")
+        st.warning("Você não tem permissão para acessar essa área.")
         return
-
     st.title("👥 Gerenciamento de Usuários")
 
     with st.form("form_cadastrar_usuario"):
@@ -445,19 +408,21 @@ def area_usuarios():
         senha = st.text_input("Senha", type="password")
         permissao = st.selectbox("Permissão", ["normal", "master"])
         enviar = st.form_submit_button("Cadastrar Usuário")
-
     if enviar:
-        st.session_state.usuarios.append({
+        novo_usuario = {
             "nome": nome,
             "usuario": usuario,
             "senha": senha,
             "permissao": permissao
-        })
-        st.success(f"Usuário {usuario} cadastrado com sucesso!")
+        }
+        st.session_state.usuarios.append(novo_usuario)
+        st.success("Usuário cadastrado com sucesso!")
 
-    st.subheader("Usuários cadastrados")
-    df_users = pd.DataFrame(st.session_state.usuarios)
-    st.dataframe(df_users[["nome", "usuario", "permissao"]])
+    st.markdown("---")
+
+    st.subheader("Usuários Cadastrados")
+    for u in st.session_state.usuarios:
+        st.write(f"Nome: {u['nome']} - Usuário: {u['usuario']} - Permissão: {u['permissao']}")
 
 def main():
     if not st.session_state.logado:
@@ -465,15 +430,19 @@ def main():
         return
 
     with st.sidebar:
-        escolha = option_menu("Menu", 
-            ["Início", "Cadastro Processo", "Cadastro Jurisprudência", "Despachos", "Movimentações", "Agenda", "Usuários", "Logout"],
-            icons=["house", "file-earmark-text", "book", "envelope", "arrow-repeat", "calendar", "people", "box-arrow-right"],
-            menu_icon="cast",
+        escolha = option_menu(
+            menu_title="Menu Principal",
+            options=["Início", "Cadastro Processo", "Cadastro Jurisprudência", "Despachos", "Movimentações", "Agenda", "Gerenciar Usuários", "Logout"],
+            icons=["house", "file-earmark-text", "book", "file-text", "arrow-repeat", "calendar", "people", "box-arrow-right"],
+            menu_icon="list",
             default_index=0,
             styles={
+                "container": {"padding": "5px"},
+                "icon": {"color": "blue", "font-size": "20px"},
+                "nav-link": {"font-size": "16px", "text-align": "left", "margin":"0px", "--hover-color": "#eee"},
                 "nav-link-selected": {"background-color": "#0B3D91", "color": "white"},
-                "nav-link": {"font-size": "16px", "padding": "10px"},
-            })
+            }
+        )
 
     if escolha == "Início":
         inicio()
@@ -482,19 +451,24 @@ def main():
     elif escolha == "Cadastro Jurisprudência":
         cadastro_jurisprudencia()
     elif escolha == "Despachos":
-        area_despachos()
+        despachos()
     elif escolha == "Movimentações":
-        area_movimentacoes()
+        movimentacoes()
     elif escolha == "Agenda":
-        area_agenda()
-    elif escolha == "Usuários":
-        area_usuarios()
+        agenda()
+    elif escolha == "Gerenciar Usuários":
+        gerenciar_usuarios()
     elif escolha == "Logout":
         st.session_state.logado = False
         st.session_state.usuario_logado = None
         st.experimental_rerun()
 
-    st.markdown("""<div class="footer">Desenvolvido por Igor Sansone - Setor de Secretaria CRORS - Para uso do Conselho Federal de Odontologia</div>""", unsafe_allow_html=True)
+    # Rodapé fixo
+    st.markdown("""
+    <div class="footer">
+        Desenvolvido por Igor Sansone - Setor de Secretaria
+    </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
