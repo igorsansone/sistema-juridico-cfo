@@ -5,8 +5,7 @@ from streamlit_option_menu import option_menu
 import altair as alt
 import streamlit.components.v1 as components
 from io import BytesIO
-from reportlab.lib.pagesizes import letter
-from reportlab.pdfgen import canvas
+from fpdf import FPDF  # Substituindo reportlab por fpdf
 
 # Função para forçar rerun (usar se precisar)
 def forcar_rerun():
@@ -358,203 +357,112 @@ def area_despachos():
         st.session_state.despachos.append({
             "Número": numero,
             "Despacho": despacho,
-            "Data": datetime.today().strftime("%d/%m/%Y"),
-            "Usuario": st.session_state.usuario_logado
+            "Data": datetime.now().strftime("%d/%m/%Y %H:%M")
         })
         st.success("Despacho salvo com sucesso!")
 
     if st.session_state.despachos:
         st.subheader("Despachos Cadastrados")
-        df_despachos = pd.DataFrame(st.session_state.despachos)
-        st.dataframe(df_despachos)
-
-def area_movimentacoes():
-    st.title("📂 Movimentações dos Processos")
-
-    if not st.session_state.processos:
-        st.warning("Cadastre processos para adicionar movimentações.")
-        return
-
-    numeros = [p["Número"] for p in st.session_state.processos]
-
-    abas = st.tabs(["Cadastrar Movimentação", "Visualizar Movimentações", "Gerar PDF"])
-
-    with abas[0]:
-        with st.form("form_movimentacao"):
-            numero = st.selectbox("Número do Processo", options=numeros)
-            descricao = st.text_area("Descrição da Movimentação")
-            prazo = st.date_input("Prazo", value=datetime.today())
-            enviar = st.form_submit_button("Salvar Movimentação")
-
-        if enviar:
-            mov = {
-                "Número": numero,
-                "Descrição": descricao,
-                "Prazo": prazo.strftime("%d/%m/%Y"),
-                "Usuário": st.session_state.usuario_logado
-            }
-            st.session_state.movimentacoes.append(mov)
-            st.success("Movimentação cadastrada!")
-
-    with abas[1]:
-        if st.session_state.movimentacoes:
-            df = pd.DataFrame(st.session_state.movimentacoes)
-            st.dataframe(df)
-        else:
-            st.info("Nenhuma movimentação cadastrada.")
-
-    with abas[2]:
-        if st.session_state.movimentacoes:
-            buffer = BytesIO()
-            c = canvas.Canvas(buffer, pagesize=letter)
-            width, height = letter
-
-            c.setFont("Helvetica-Bold", 16)
-            c.drawString(50, height - 50, "Relatório de Movimentações")
-
-            y = height - 80
-            c.setFont("Helvetica", 12)
-
-            for mov in st.session_state.movimentacoes:
-                texto = f"Processo: {mov['Número']} | Prazo: {mov['Prazo']} | Usuário: {mov['Usuário']}\nDescrição: {mov['Descrição']}"
-                for line in texto.split('\n'):
-                    c.drawString(50, y, line)
-                    y -= 15
-                y -= 10
-                if y < 50:
-                    c.showPage()
-                    y = height - 50
-
-            c.save()
-            buffer.seek(0)
-            st.download_button("Baixar Relatório PDF", data=buffer, file_name="relatorio_movimentacoes.pdf", mime="application/pdf")
-        else:
-            st.info("Nenhuma movimentação para gerar relatório.")
-
-def area_agenda():
-    st.title("📅 Agenda de Eventos")
-
-    if "agenda" not in st.session_state:
-        st.session_state.agenda = []
-
-    with st.form("form_agenda"):
-        data_evento = st.date_input("Data do Evento")
-        evento = st.text_input("Nome do Evento")
-        descricao = st.text_area("Descrição")
-        enviar = st.form_submit_button("Salvar Evento")
-
-    if enviar:
-        novo_evento = {
-            "Data": data_evento.strftime("%d/%m/%Y"),
-            "Evento": evento,
-            "Descrição": descricao
-        }
-        st.session_state.agenda.append(novo_evento)
-        st.success("Evento cadastrado!")
-
-    if st.session_state.agenda:
-        df = pd.DataFrame(st.session_state.agenda)
-        df["Data"] = pd.to_datetime(df["Data"], format="%d/%m/%Y", errors='coerce')
-        df = df.sort_values("Data")
+        df = pd.DataFrame(st.session_state.despachos)
         st.dataframe(df)
 
-def gerenciar_usuarios():
-    if not usuario_eh_master():
-        st.error("Acesso negado. Usuário master apenas.")
+def area_movimentacoes():
+    st.title("📋 Movimentações Processuais")
+
+    if not st.session_state.processos:
+        st.warning("Nenhum processo cadastrado. Cadastre um processo antes de adicionar movimentações.")
         return
 
-    st.title("⚙️ Gerenciamento de Usuários")
+    numeros_processos = [p["Número"] for p in st.session_state.processos]
 
-    with st.form("form_cadastro_usuario"):
-        nome = st.text_input("Nome Completo")
-        usuario = st.text_input("Usuário")
-        senha = st.text_input("Senha", type="password")
-        permissao = st.selectbox("Permissão", ["normal", "master"])
-        enviar = st.form_submit_button("Cadastrar Usuário")
+    with st.form("form_movimentacoes"):
+        numero = st.selectbox("Número do Processo", options=numeros_processos)
+        descricao = st.text_area("Descrição da Movimentação")
+        prazo = st.date_input("Prazo (se houver)")
+        enviar = st.form_submit_button("Salvar Movimentação")
 
     if enviar:
-        if any(u["usuario"] == usuario for u in st.session_state.usuarios):
-            st.error("Usuário já existe.")
-        else:
-            st.session_state.usuarios.append({
-                "nome": nome,
-                "usuario": usuario,
-                "senha": senha,
-                "permissao": permissao
-            })
-            st.success("Usuário cadastrado!")
+        prazo_str = prazo.strftime("%d/%m/%Y") if prazo else ""
+        st.session_state.movimentacoes.append({
+            "Número": numero,
+            "Descrição": descricao,
+            "Prazo": prazo_str
+        })
+        st.success("Movimentação salva com sucesso!")
 
-    st.markdown("---")
+    # Tabela das movimentações
+    if st.session_state.movimentacoes:
+        st.subheader("Movimentações Cadastradas")
+        df = pd.DataFrame(st.session_state.movimentacoes)
+        st.dataframe(df)
 
-    st.subheader("Lista de Usuários")
-    usuarios_df = pd.DataFrame(st.session_state.usuarios)
-    st.dataframe(usuarios_df)
+        # Botão para gerar PDF com fpdf
+        if st.button("Gerar PDF das Movimentações"):
+            pdf_bytes = gerar_pdf_movimentacoes_pdf(df)
+            st.download_button("Download PDF Movimentações", data=pdf_bytes, file_name="movimentacoes.pdf", mime="application/pdf")
 
-    st.markdown("---")
+def gerar_pdf_movimentacoes_pdf(df_movs: pd.DataFrame):
+    pdf = FPDF()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.add_page()
+    pdf.set_font("Arial", "B", 14)
+    pdf.cell(0, 10, "Relatório de Movimentações Processuais", 0, 1, "C")
 
-    usuario_excluir = st.selectbox("Selecionar usuário para excluir", options=[u["usuario"] for u in st.session_state.usuarios])
-    if st.button("Excluir Usuário"):
-        if usuario_excluir == st.session_state.usuario_logado:
-            st.warning("Você não pode excluir seu próprio usuário enquanto estiver logado.")
-        else:
-            st.session_state.usuarios = [u for u in st.session_state.usuarios if u["usuario"] != usuario_excluir]
-            st.success(f"Usuário {usuario_excluir} excluído.")
+    pdf.set_font("Arial", "", 12)
+    col_widths = [40, 90, 40]  # Ajuste para colunas Número, Descrição, Prazo
 
-# Rodapé fixo
-def rodape():
-    st.markdown("""
-    <div class="footer">
-    Desenvolvido por Igor Sansone - Setor de Secretaria
-    </div>
-    """, unsafe_allow_html=True)
+    # Cabeçalho
+    pdf.set_fill_color(200, 220, 255)
+    pdf.cell(col_widths[0], 10, "Número", 1, 0, "C", fill=True)
+    pdf.cell(col_widths[1], 10, "Descrição", 1, 0, "C", fill=True)
+    pdf.cell(col_widths[2], 10, "Prazo", 1, 1, "C", fill=True)
 
-# --- MAIN ---
+    pdf.set_font("Arial", "", 11)
+    for idx, row in df_movs.iterrows():
+        pdf.cell(col_widths[0], 8, str(row["Número"]), 1)
+        descricao = row["Descrição"]
+        # Limitar descrição para evitar overflow
+        if len(descricao) > 70:
+            descricao = descricao[:67] + "..."
+        pdf.cell(col_widths[1], 8, descricao, 1)
+        pdf.cell(col_widths[2], 8, row["Prazo"] if pd.notna(row["Prazo"]) else "", 1, 1)
 
+    # Gera bytes para download
+    pdf_out = pdf.output(dest='S').encode('latin1')
+    return pdf_out
+
+# Menu lateral com opções
 def main():
     if not st.session_state.logado:
         tela_login()
         return
 
-    # Menu lateral à esquerda
-    with st.sidebar:
-        escolha = option_menu(
-            menu_title=None,
-            options=["Início", "Cadastro Processo", "Cadastro Jurisprudência", "Despachos", "Movimentações", "Agenda", "Gerenciar Usuários", "Logout"],
-            icons=["house", "file-earmark-text", "book", "envelope", "folder", "calendar", "gear", "box-arrow-right"],
-            menu_icon="cast",
-            default_index=0,
-            orientation="vertical",
-            styles={
-                "container": {"padding": "5px"},
-                "nav-link": {"font-size": "16px", "text-align": "left", "margin":"0px", "--hover-color": "#eee"},
-                "nav-link-selected": {"background-color": "#0B3D91", "color": "white"},
-            }
-        )
+    menu = option_menu("Menu", [
+        "Início",
+        "Cadastro de Processo",
+        "Jurisprudência",
+        "Despachos",
+        "Movimentações",
+        "Sair"
+    ], icons=["house", "file-earmark-text", "book", "envelope", "list-task", "box-arrow-right"], menu_icon="list", default_index=0)
 
-    if escolha == "Início":
+    if menu == "Início":
         inicio()
-    elif escolha == "Cadastro Processo":
+    elif menu == "Cadastro de Processo":
         cadastro_processo()
-    elif escolha == "Cadastro Jurisprudência":
+    elif menu == "Jurisprudência":
         cadastro_jurisprudencia()
-    elif escolha == "Despachos":
+    elif menu == "Despachos":
         area_despachos()
-    elif escolha == "Movimentações":
+    elif menu == "Movimentações":
         area_movimentacoes()
-    elif escolha == "Agenda":
-        area_agenda()
-    elif escolha == "Gerenciar Usuários":
-        gerenciar_usuarios()
-    elif escolha == "Logout":
+    elif menu == "Sair":
         st.session_state.logado = False
         st.session_state.usuario_logado = None
         st.experimental_rerun()
 
-    rodape()
+    # Rodapé fixo
+    st.markdown('<div class="footer">Desenvolvido por Igor Sansone - Setor de Secretaria</div>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
-
-
-    st.markdown('<div class="footer">Desenvolvido por Igor Sansone - Setor de Secretaria</div>', unsafe_allow_html=True)
-
