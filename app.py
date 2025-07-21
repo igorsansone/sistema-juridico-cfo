@@ -457,32 +457,82 @@ def movimentacoes():
 
 def agenda():
     st.title("📅 Agenda de Eventos")
-    with st.form("form_agenda"):
-        data = st.date_input("Data do Evento")
-        evento = st.text_input("Evento")
-        descricao = st.text_area("Descrição")
-        horario_texto = st.text_input("Horário do Evento (ex: 14:30)")
 
-        def validar_hora(hora_str):
-            import re
-            if re.match(r"^(?:[01]\d|2[0-3]):[0-5]\d$", hora_str):
-                return True
-            return False
+    modo = st.radio("Escolha a ação:", ["Adicionar Evento", "Editar/Excluir Evento"])
 
-        enviar = st.form_submit_button("Adicionar Evento")
+    if modo == "Adicionar Evento":
+        with st.form("form_agenda"):
+            data = st.date_input("Data do Evento")
+            evento = st.text_input("Evento")
+            descricao = st.text_area("Descrição")
+            horario_texto = st.text_input("Horário do Evento (ex: 14:30)")
+            local = st.text_input("Local da Reunião")
+            representante = st.text_input("Advogado/Representante no Ato")
 
-    if enviar:
-        if horario_texto and not validar_hora(horario_texto):
-            st.error("Formato do horário inválido. Use HH:MM (ex: 14:30).")
+            def validar_hora(hora_str):
+                import re
+                return bool(re.match(r"^(?:[01]\d|2[0-3]):[0-5]\d$", hora_str))
+
+            enviar = st.form_submit_button("Adicionar Evento")
+
+        if enviar:
+            if horario_texto and not validar_hora(horario_texto):
+                st.error("Formato do horário inválido. Use HH:MM (ex: 14:30).")
+                return
+            novo_evento = {
+                "Data": data.strftime("%d/%m/%Y"),
+                "Evento": evento,
+                "Descrição": descricao,
+                "Horário": horario_texto,
+                "Local": local,
+                "Representante": representante
+            }
+            st.session_state.agenda.append(novo_evento)
+            st.success("Evento adicionado com sucesso!")
+
+    elif modo == "Editar/Excluir Evento":
+        if not st.session_state.agenda:
+            st.info("Nenhum evento cadastrado.")
             return
-        novo_evento = {
-            "Data": data.strftime("%d/%m/%Y"),
-            "Evento": evento,
-            "Descrição": descricao,
-            "Horário": horario_texto
-        }
-        st.session_state.agenda.append(novo_evento)
-        st.success("Evento adicionado com sucesso!")
+
+        eventos = st.session_state.agenda
+        opcoes = [f"{e['Data']} - {e['Evento']} às {e.get('Horário', '')}" for e in eventos]
+        selecao = st.selectbox("Selecione o evento", [""] + opcoes)
+
+        if selecao:
+            idx = opcoes.index(selecao)
+            evento_sel = eventos[idx]
+
+            with st.form("form_editar_evento"):
+                data = st.date_input("Data do Evento", value=datetime.strptime(evento_sel["Data"], "%d/%m/%Y"))
+                evento = st.text_input("Evento", value=evento_sel["Evento"])
+                descricao = st.text_area("Descrição", value=evento_sel["Descrição"])
+                horario = st.text_input("Horário (HH:MM)", value=evento_sel.get("Horário", ""))
+                local = st.text_input("Local da Reunião", value=evento_sel.get("Local", ""))
+                representante = st.text_input("Advogado/Representante no Ato", value=evento_sel.get("Representante", ""))
+                salvar = st.form_submit_button("Salvar Alterações")
+                excluir = st.form_submit_button("Excluir Evento")
+
+            if salvar:
+                if horario and not validar_hora(horario):
+                    st.error("Formato do horário inválido. Use HH:MM.")
+                    return
+                eventos[idx] = {
+                    "Data": data.strftime("%d/%m/%Y"),
+                    "Evento": evento,
+                    "Descrição": descricao,
+                    "Horário": horario,
+                    "Local": local,
+                    "Representante": representante
+                }
+                st.success("Evento atualizado com sucesso!")
+                st.experimental_rerun()
+
+            if excluir:
+                eventos.pop(idx)
+                st.success("Evento excluído com sucesso!")
+                st.experimental_rerun()
+
 
 def gerenciar_usuarios():
     if not usuario_eh_master():
