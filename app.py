@@ -593,8 +593,8 @@ if st.session_state.logado:
         cadastro_processo()
     elif escolha == "Jurisprudência":
         cadastro_jurisprudencia()
-    elif escolha == "Despacho":
-        despacho()
+    elif escolha == "Despachos":
+        despachos()
     elif escolha == "Movimentações":
         movimentacoes()
     elif escolha == "Agenda":
