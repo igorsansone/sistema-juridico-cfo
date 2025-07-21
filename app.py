@@ -420,16 +420,89 @@ def movimentacoes():
             st.info("Nenhuma movimentação cadastrada.")
 
 def agenda():
+def agenda():
     st.title("📅 Agenda de Eventos")
-    with st.form("form_agenda"):
-        data = st.date_input("Data do Evento")
-        horario = st.time_input("Horário")
+
+    # Campo para pesquisa
+    termo_pesquisa = st.text_input("🔎 Pesquisar reuniões passadas (evento, local, pessoas)")
+
+    # Filtrar eventos por termo pesquisado (busca case-insensitive)
+    if termo_pesquisa.strip():
+        termo = termo_pesquisa.strip().lower()
+        eventos_filtrados = [
+            e for e in st.session_state.agenda
+            if termo in e.get("Evento", "").lower()
+            or termo in e.get("Descrição", "").lower()
+            or termo in e.get("Local", "").lower()
+            or termo in e.get("Advogado/Representante", "").lower()
+            or termo in e.get("Magistrado/Ministro", "").lower()
+            or termo in e.get("Data", "").lower()
+        ]
+    else:
+        eventos_filtrados = st.session_state.agenda
+
+    # Selecione evento para editar/excluir
+    if eventos_filtrados:
+        st.subheader("Reuniões cadastradas")
+
+        # Usaremos um selectbox para escolher evento para editar/excluir
+        opcoes = [f"{e['Data']} - {e['Evento']}" for e in eventos_filtrados]
+        escolha = st.selectbox("Selecione um evento para editar ou excluir", [""] + opcoes)
+
+        if escolha:
+            idx = opcoes.index(escolha)
+            evento_sel = eventos_filtrados[idx]
+
+            # Formulário de edição
+            with st.form("form_editar_evento"):
+                data = st.date_input("Data do Evento", value=datetime.strptime(evento_sel["Data"], "%d/%m/%Y"))
+                horario = st.time_input("Horário", value=datetime.strptime(evento_sel["Horário"], "%H:%M"))
+                local = st.text_input("Local da Reunião", value=evento_sel.get("Local", ""))
+                advogado_representante = st.text_input("Advogado ou Representante Designado", value=evento_sel.get("Advogado/Representante", ""))
+                magistrado_ministro = st.text_input("Magistrado ou Ministro da Reunião", value=evento_sel.get("Magistrado/Ministro", ""))
+                evento = st.text_input("Evento", value=evento_sel.get("Evento", ""))
+                descricao = st.text_area("Descrição", value=evento_sel.get("Descrição", ""))
+                enviar = st.form_submit_button("Salvar Alterações")
+                excluir = st.form_submit_button("Excluir Evento")
+
+            if enviar:
+                # Atualiza evento na lista original
+                original_idx = st.session_state.agenda.index(evento_sel)
+                st.session_state.agenda[original_idx] = {
+                    "Data": data.strftime("%d/%m/%Y"),
+                    "Horário": horario.strftime("%H:%M"),
+                    "Local": local,
+                    "Advogado/Representante": advogado_representante,
+                    "Magistrado/Ministro": magistrado_ministro,
+                    "Evento": evento,
+                    "Descrição": descricao
+                }
+                st.success("Evento atualizado com sucesso!")
+                st.experimental_rerun()
+
+            if excluir:
+                original_idx = st.session_state.agenda.index(evento_sel)
+                st.session_state.agenda.pop(original_idx)
+                st.success("Evento excluído com sucesso!")
+                st.experimental_rerun()
+
+    else:
+        st.info("Nenhuma reunião cadastrada para o filtro atual.")
+
+    st.markdown("---")
+
+    # Formulário para adicionar novo evento
+    st.subheader("Adicionar novo evento")
+    with st.form("form_adicionar_evento"):
+        data = st.date_input("Data do Evento", value=datetime.today())
+        horario = st.time_input("Horário", value=datetime.now())
         local = st.text_input("Local da Reunião")
         advogado_representante = st.text_input("Advogado ou Representante Designado")
         magistrado_ministro = st.text_input("Magistrado ou Ministro da Reunião")
         evento = st.text_input("Evento")
         descricao = st.text_area("Descrição")
         enviar = st.form_submit_button("Adicionar Evento")
+
     if enviar:
         novo_evento = {
             "Data": data.strftime("%d/%m/%Y"),
@@ -442,12 +515,7 @@ def agenda():
         }
         st.session_state.agenda.append(novo_evento)
         st.success("Evento adicionado com sucesso!")
-
-    # Exibir eventos cadastrados (opcional)
-    if st.session_state.agenda:
-        st.subheader("Eventos Cadastrados")
-        df_agenda = pd.DataFrame(st.session_state.agenda)
-        st.dataframe(df_agenda)
+        st.experimental_rerun()
 
 
 def gerenciar_usuarios():
