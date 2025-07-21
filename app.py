@@ -343,19 +343,29 @@ def cadastro_jurisprudencia():
         })
         st.success("Jurisprudência cadastrada com sucesso.")
 
-def despacho():
+def despachos():
     st.title("📜 Cadastro de Despachos")
 
+    processos = st.session_state.processos
+    opcoes_numero = [p["Número"] for p in processos] if processos else []
+
     with st.form("form_despacho"):
-        numero_processo = st.text_input("Número do Processo")
+        if opcoes_numero:
+            numero_processo = st.selectbox("Número do Processo", options=opcoes_numero)
+        else:
+            st.warning("Nenhum processo cadastrado ainda.")
+            numero_processo = None
         data_despacho = st.date_input("Data do Despacho", value=datetime.today())
         descricao = st.text_area("Descrição do Despacho")
         usuario_responsavel = st.session_state.usuario_logado
         submit = st.form_submit_button("Salvar Despacho")
 
     if submit:
-        if numero_processo.strip() == "":
-            st.error("Número do processo é obrigatório.")
+        if not numero_processo:
+            st.error("Selecione um número de processo válido.")
+            return
+        if descricao.strip() == "":
+            st.error("A descrição do despacho é obrigatória.")
             return
         st.session_state.despachos.append({
             "Número": numero_processo,
@@ -368,36 +378,38 @@ def despacho():
 def movimentacoes():
     st.title("📅 Movimentações e Prazos")
 
-    if "prazo" not in st.session_state:
-        st.session_state.prazo = ""
-    if "descricao_mov" not in st.session_state:
-        st.session_state.descricao_mov = ""
+    processos = st.session_state.processos
+    opcoes_numero = [p["Número"] for p in processos] if processos else []
 
     with st.form("form_movimentacao"):
-        numero_processo = st.text_input("Número do Processo")
-        prazo = st.text_input("Prazo (dd/mm/aaaa)", value=st.session_state.prazo)
-        descricao_mov = st.text_area("Descrição", value=st.session_state.descricao_mov)
+        if opcoes_numero:
+            numero_processo = st.selectbox("Número do Processo", options=opcoes_numero)
+        else:
+            st.warning("Nenhum processo cadastrado ainda.")
+            numero_processo = None
+        prazo = st.text_input("Prazo (dd/mm/aaaa)")
+        descricao_mov = st.text_area("Descrição")
         submit = st.form_submit_button("Salvar Movimentação")
 
     if submit:
-        # Valida data prazo
+        if not numero_processo:
+            st.error("Selecione um número de processo válido.")
+            return
+        if descricao_mov.strip() == "":
+            st.error("Descrição da movimentação é obrigatória.")
+            return
         try:
             prazo_dt = datetime.strptime(prazo, "%d/%m/%Y")
         except Exception:
             st.error("Data de prazo inválida! Use o formato dd/mm/aaaa.")
             return
-        if numero_processo.strip() == "":
-            st.error("Número do processo é obrigatório.")
-            return
+
         st.session_state.movimentacoes.append({
             "Número": numero_processo,
             "Prazo": prazo,
             "Descrição": descricao_mov
         })
-        st.session_state.prazo = ""
-        st.session_state.descricao_mov = ""
         st.success("Movimentação cadastrada com sucesso.")
-
 def agenda():
     st.title("📆 Agenda - Compromissos e Reuniões")
 
