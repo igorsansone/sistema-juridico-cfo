@@ -423,17 +423,32 @@ def agenda():
     st.title("📅 Agenda de Eventos")
     with st.form("form_agenda"):
         data = st.date_input("Data do Evento")
+        horario = st.time_input("Horário")
+        local = st.text_input("Local da Reunião")
+        advogado_representante = st.text_input("Advogado ou Representante Designado")
+        magistrado_ministro = st.text_input("Magistrado ou Ministro da Reunião")
         evento = st.text_input("Evento")
         descricao = st.text_area("Descrição")
         enviar = st.form_submit_button("Adicionar Evento")
     if enviar:
         novo_evento = {
             "Data": data.strftime("%d/%m/%Y"),
+            "Horário": horario.strftime("%H:%M"),
+            "Local": local,
+            "Advogado/Representante": advogado_representante,
+            "Magistrado/Ministro": magistrado_ministro,
             "Evento": evento,
             "Descrição": descricao
         }
         st.session_state.agenda.append(novo_evento)
         st.success("Evento adicionado com sucesso!")
+
+    # Exibir eventos cadastrados (opcional)
+    if st.session_state.agenda:
+        st.subheader("Eventos Cadastrados")
+        df_agenda = pd.DataFrame(st.session_state.agenda)
+        st.dataframe(df_agenda)
+
 
 def gerenciar_usuarios():
     if not usuario_eh_master():
