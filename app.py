@@ -406,24 +406,110 @@ def movimentacoes():
 def agenda():
     st.title("📆 Agenda")
 
+    # Formulário para cadastro/edição de evento
     with st.form("form_agenda"):
         data_evento = st.date_input("Data do Evento", value=datetime.today())
+        hora_evento = st.text_input("Hora (HH:MM)", max_chars=5, help="Formato 24h, ex: 14:30")
         evento = st.text_input("Evento")
         descricao = st.text_area("Descrição")
+        local = st.text_input("Local da Reunião")
+        advogado_representante = st.text_input("Advogado/Representante no Ato")
+        modalidade = st.selectbox("Modalidade", ["Presencial", "Online"])
+        concluido = st.checkbox("Evento Concluído")
         submit = st.form_submit_button("Salvar Evento")
 
     if submit:
-        st.session_state.agenda.append({
+        # Validar formato da hora (opcional)
+        try:
+            if hora_evento:
+                datetime.strptime(hora_evento, "%H:%M")
+        except:
+            st.error("Formato de hora inválido. Use HH:MM no formato 24h.")
+            return
+        
+        novo_evento = {
             "Data": data_evento.strftime("%d/%m/%Y"),
+            "Hora": hora_evento,
             "Evento": evento,
-            "Descrição": descricao
-        })
+            "Descrição": descricao,
+            "Local": local,
+            "Advogado/Representante": advogado_representante,
+            "Modalidade": modalidade,
+            "Concluído": concluido
+        }
+        st.session_state.agenda.append(novo_evento)
         st.success("Evento adicionado à agenda.")
+        st.experimental_rerun()
 
+    # Mostrar lista de eventos cadastrados
     if st.session_state.agenda:
         st.markdown("### Eventos Cadastrados")
+
+        # Criar DataFrame com os dados da agenda
         df = pd.DataFrame(st.session_state.agenda)
-        st.dataframe(df)
+
+        # Para facilitar edição e exclusão, vamos iterar pelos eventos
+        for idx, evento in df.iterrows():
+            st.markdown(f"**{evento['Data']} {evento['Hora']} - {evento['Evento']}**")
+            st.write(f"**Descrição:** {evento['Descrição']}")
+            st.write(f"**Local:** {evento['Local']}")
+            st.write(f"**Advogado/Representante:** {evento['Advogado/Representante']}")
+            st.write(f"**Modalidade:** {evento['Modalidade']}")
+            st.write(f"**Concluído:** {'✅' if evento['Concluído'] else '❌'}")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button(f"Editar {idx}", key=f"editar_{idx}"):
+                    # Carregar evento para edição - preenche campos do formulário
+                    st.session_state.evento_editando = idx
+                    st.experimental_rerun()
+            with col2:
+                if st.button(f"Excluir {idx}", key=f"excluir_{idx}"):
+                    st.session_state.agenda.pop(idx)
+                    st.success("Evento excluído.")
+                    st.experimental_rerun()
+
+    # Se estiver editando um evento, carregar dados no formulário
+    if "evento_editando" in st.session_state:
+        idx = st.session_state.evento_editando
+        if 0 <= idx < len(st.session_state.agenda):
+            evento_edit = st.session_state.agenda[idx]
+
+            with st.form("form_edicao_agenda"):
+                data_evento = st.date_input("Data do Evento", value=datetime.strptime(evento_edit["Data"], "%d/%m/%Y"))
+                hora_evento = st.text_input("Hora (HH:MM)", value=evento_edit["Hora"], max_chars=5)
+                evento = st.text_input("Evento", value=evento_edit["Evento"])
+                descricao = st.text_area("Descrição", value=evento_edit["Descrição"])
+                local = st.text_input("Local da Reunião", value=evento_edit["Local"])
+                advogado_representante = st.text_input("Advogado/Representante no Ato", value=evento_edit["Advogado/Representante"])
+                modalidade = st.selectbox("Modalidade", ["Presencial", "Online"], index=0 if evento_edit["Modalidade"]=="Presencial" else 1)
+                concluido = st.checkbox("Evento Concluído", value=evento_edit["Concluído"])
+
+                submit_edit = st.form_submit_button("Salvar Alterações")
+
+            if submit_edit:
+                # Validação da hora
+                try:
+                    if hora_evento:
+                        datetime.strptime(hora_evento, "%H:%M")
+                except:
+                    st.error("Formato de hora inválido. Use HH:MM no formato 24h.")
+                    return
+                
+                st.session_state.agenda[idx] = {
+                    "Data": data_evento.strftime("%d/%m/%Y"),
+                    "Hora": hora_evento,
+                    "Evento": evento,
+                    "Descrição": descricao,
+                    "Local": local,
+                    "Advogado/Representante": advogado_representante,
+                    "Modalidade": modalidade,
+                    "Concluído": concluido
+                }
+                st.success("Evento atualizado com sucesso.")
+                del st.session_state.evento_editando
+                st.experimental_rerun()
+
 
 def historico():
     st.title("📜 Histórico do Processo")
