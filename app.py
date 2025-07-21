@@ -446,7 +446,6 @@ def agenda():
     if eventos_filtrados:
         st.subheader("Reuniões cadastradas")
 
-        # Lista de opções para selectbox (Data - Evento)
         opcoes = [f"{e['Data']} - {e['Evento']}" for e in eventos_filtrados]
         escolha = st.selectbox("Selecione um evento para editar ou excluir", [""] + opcoes)
 
@@ -454,15 +453,29 @@ def agenda():
             idx = opcoes.index(escolha)
             evento_sel = eventos_filtrados[idx]
 
-            # Formulário de edição
             with st.form("form_editar_evento"):
-                data = st.date_input("Data do Evento", value=datetime.strptime(evento_sel["Data"], "%d/%m/%Y"))
-                horario = st.time_input("Horário", value=datetime.strptime(evento_sel["Horário"], "%H:%M").time())
-                local = st.text_input("Local da Reunião", value=evento_sel.get("Local", ""))
-                advogado_representante = st.text_input("Advogado ou Representante Designado", value=evento_sel.get("Advogado/Representante", ""))
-                magistrado_ministro = st.text_input("Magistrado ou Ministro da Reunião", value=evento_sel.get("Magistrado/Ministro", ""))
-                evento = st.text_input("Evento", value=evento_sel.get("Evento", ""))
-                descricao = st.text_area("Descrição", value=evento_sel.get("Descrição", ""))
+                data = st.date_input(
+                    "Data do Evento",
+                    value=datetime.strptime(evento_sel["Data"], "%d/%m/%Y"),
+                    key="edit_data"
+                )
+
+                # Campo de horário: mostrar time_input e texto para digitar (para flexibilidade)
+                horario_time = datetime.strptime(evento_sel["Horário"], "%H:%M").time()
+                horario = st.time_input("Horário (selecione)", value=horario_time, key="edit_horario_time")
+                horario_texto = st.text_input("Ou digite o horário (HH:MM)", value=evento_sel["Horário"], key="edit_horario_text")
+
+                # Prioriza texto digitado, se válido
+                horario_final = validar_hora(horario_texto)
+                if not horario_final:
+                    horario_final = horario
+
+                local = st.text_input("Local da Reunião", value=evento_sel.get("Local", ""), key="edit_local")
+                advogado_representante = st.text_input("Advogado ou Representante Designado", value=evento_sel.get("Advogado/Representante", ""), key="edit_advogado")
+                magistrado_ministro = st.text_input("Magistrado ou Ministro da Reunião", value=evento_sel.get("Magistrado/Ministro", ""), key="edit_magistrado")
+                evento = st.text_input("Evento", value=evento_sel.get("Evento", ""), key="edit_evento")
+                descricao = st.text_area("Descrição", value=evento_sel.get("Descrição", ""), key="edit_descricao")
+
                 enviar = st.form_submit_button("Salvar Alterações")
                 excluir = st.form_submit_button("Excluir Evento")
 
@@ -470,7 +483,7 @@ def agenda():
                 original_idx = st.session_state.agenda.index(evento_sel)
                 st.session_state.agenda[original_idx] = {
                     "Data": data.strftime("%d/%m/%Y"),
-                    "Horário": horario.strftime("%H:%M"),
+                    "Horário": horario_final.strftime("%H:%M"),
                     "Local": local,
                     "Advogado/Representante": advogado_representante,
                     "Magistrado/Ministro": magistrado_ministro,
@@ -478,13 +491,13 @@ def agenda():
                     "Descrição": descricao
                 }
                 st.success("Evento atualizado com sucesso!")
-                st.experimental_rerun()
+                rerun()
 
             if excluir:
                 original_idx = st.session_state.agenda.index(evento_sel)
                 st.session_state.agenda.pop(original_idx)
                 st.success("Evento excluído com sucesso!")
-                st.experimental_rerun()
+                rerun()
     else:
         st.info("Nenhuma reunião cadastrada para o filtro atual.")
 
@@ -493,19 +506,26 @@ def agenda():
     # Formulário para adicionar novo evento
     st.subheader("Adicionar novo evento")
     with st.form("form_adicionar_evento"):
-        data = st.date_input("Data do Evento", value=datetime.today())
-        horario = st.time_input("Horário", value=datetime.now().time())
-        local = st.text_input("Local da Reunião")
-        advogado_representante = st.text_input("Advogado ou Representante Designado")
-        magistrado_ministro = st.text_input("Magistrado ou Ministro da Reunião")
-        evento = st.text_input("Evento")
-        descricao = st.text_area("Descrição")
+        data = st.date_input("Data do Evento", value=datetime.today(), key="add_data")
+        horario = st.time_input("Horário (selecione)", value=datetime.now().time(), key="add_horario_time")
+        horario_texto = st.text_input("Ou digite o horário (HH:MM)", value=horario.strftime("%H:%M"), key="add_horario_text")
+
+        horario_final = validar_hora(horario_texto)
+        if not horario_final:
+            horario_final = horario
+
+        local = st.text_input("Local da Reunião", key="add_local")
+        advogado_representante = st.text_input("Advogado ou Representante Designado", key="add_advogado")
+        magistrado_ministro = st.text_input("Magistrado ou Ministro da Reunião", key="add_magistrado")
+        evento = st.text_input("Evento", key="add_evento")
+        descricao = st.text_area("Descrição", key="add_descricao")
+
         enviar = st.form_submit_button("Adicionar Evento")
 
     if enviar:
         novo_evento = {
             "Data": data.strftime("%d/%m/%Y"),
-            "Horário": horario.strftime("%H:%M"),
+            "Horário": horario_final.strftime("%H:%M"),
             "Local": local,
             "Advogado/Representante": advogado_representante,
             "Magistrado/Ministro": magistrado_ministro,
@@ -514,7 +534,7 @@ def agenda():
         }
         st.session_state.agenda.append(novo_evento)
         st.success("Evento adicionado com sucesso!")
-        st.experimental_rerun()
+        rerun()
 
 def gerenciar_usuarios():
     if not usuario_eh_master():
