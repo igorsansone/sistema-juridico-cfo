@@ -547,20 +547,22 @@ def historico():
         else:
             st.info("Nenhuma movimentação ou despacho encontrado para esse processo.")
 
-# Menu lateral e roteamento
 def main():
-    if not st.session_state.logado:
-        tela_login()
-    else:
-        escolha = option_menu(
-            menu_title="Menu",
-            options=["Início", "Cadastro Processo", "Jurisprudência", "Despachos", "Movimentações", "Agenda", "Histórico", "Sair"],
-            icons=["house", "file-earmark-text", "book", "file-text", "list-task", "calendar", "clock-history", "box-arrow-right"],
-            menu_icon="cast",
-            default_index=0,
-            orientation="vertical",
-        )
-
+    if st.session_state.get("logado", False):
+        with st.sidebar:
+            escolha = option_menu(
+                menu_title="Menu CFO Jurídico",
+                options=["Início", "Cadastro Processo", "Jurisprudência", "Despachos", "Movimentações", "Agenda", "Histórico", "Sair"],
+                icons=["house", "file-earmark-text", "book", "clipboard-data", "calendar-check", "calendar-event", "clock-history", "box-arrow-right"],
+                menu_icon="briefcase",
+                default_index=0,
+                styles={
+                    "container": {"padding": "5px"},
+                    "nav-link": {"font-size": "16px", "text-align": "left", "margin":"0px", "--hover-color": "#eee"},
+                    "nav-link-selected": {"background-color": "#0B3D91", "color": "white"}
+                }
+            )
+        # Conteúdo central depende da escolha do menu
         if escolha == "Início":
             inicio()
         elif escolha == "Cadastro Processo":
@@ -579,8 +581,8 @@ def main():
             st.session_state.logado = False
             st.session_state.usuario_logado = None
             st.experimental_rerun()
-
-        st.markdown("""<div class="footer">Desenvolvido por Igor Sansone - Setor de Secretaria - Para uso CFO</div>""", unsafe_allow_html=True)
+    else:
+        tela_login()
 
 if __name__ == "__main__":
     main()
