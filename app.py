@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime, time
+from datetime import datetime
 from streamlit_option_menu import option_menu
+from streamlit.runtime.scriptrunner import rerun
 import altair as alt
 import streamlit.components.v1 as components
 
@@ -394,15 +395,16 @@ def despachos():
 
 def movimentacoes():
     st.title("🔄 Movimentações")
-    menu = option_menu("", ["Cadastrar Movimentação", "Visualizar Movimentações"], 
-                       menu_icon="list-task", default_index=0, orientation="horizontal")
-    
+
+    menu = st.radio("Escolha uma opção:", ["Cadastrar Movimentação", "Visualizar / Editar Movimentações"], index=0)
+
     if menu == "Cadastrar Movimentação":
         with st.form("form_movimentacao"):
             numero = st.text_input("Número do Processo")
             descricao = st.text_area("Descrição da Movimentação")
             prazo = st.date_input("Prazo", value=datetime.today())
             enviar = st.form_submit_button("Salvar Movimentação")
+
         if enviar:
             nova_movimentacao = {
                 "Número": numero,
@@ -412,14 +414,47 @@ def movimentacoes():
             }
             st.session_state.movimentacoes.append(nova_movimentacao)
             st.success("Movimentação cadastrada com sucesso!")
-    else:
-        if st.session_state.movimentacoes:
-            df = pd.DataFrame(st.session_state.movimentacoes)
-            st.dataframe(df)
-        else:
-            st.info("Nenhuma movimentação cadastrada.")
+            rerun()
 
-from datetime import datetime, time
+    else:  # Visualizar / Editar
+        if not st.session_state.movimentacoes:
+            st.info("Nenhuma movimentação cadastrada.")
+            return
+
+        # Mostrar lista de movimentações para selecionar e editar
+        movs = st.session_state.movimentacoes
+        opcoes = [f"{m['Número']} - {m['Descrição'][:30]}... - Prazo: {m['Prazo']}" for m in movs]
+        escolha = st.selectbox("Selecione uma movimentação para editar ou excluir", [""] + opcoes)
+
+        if escolha:
+            idx = opcoes.index(escolha)
+            mov_sel = movs[idx]
+
+            with st.form("form_editar_movimentacao"):
+                numero = st.text_input("Número do Processo", value=mov_sel["Número"])
+                descricao = st.text_area("Descrição da Movimentação", value=mov_sel["Descrição"])
+                try:
+                    prazo_val = datetime.strptime(mov_sel["Prazo"], "%d/%m/%Y").date()
+                except:
+                    prazo_val = datetime.today().date()
+                prazo = st.date_input("Prazo", value=prazo_val)
+                enviar = st.form_submit_button("Salvar Alterações")
+                excluir = st.form_submit_button("Excluir Movimentação")
+
+            if enviar:
+                st.session_state.movimentacoes[idx] = {
+                    "Número": numero,
+                    "Descrição": descricao,
+                    "Prazo": prazo.strftime("%d/%m/%Y"),
+                    "Usuário": mov_sel.get("Usuário", st.session_state.usuario_logado)
+                }
+                st.success("Movimentação atualizada com sucesso!")
+                rerun()
+
+            if excluir:
+                st.session_state.movimentacoes.pop(idx)
+                st.success("Movimentação excluída com sucesso!")
+                rerun()
 
 def agenda():
     st.title("📅 Agenda de Eventos")
