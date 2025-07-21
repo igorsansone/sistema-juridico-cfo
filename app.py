@@ -130,6 +130,9 @@ def usuario_eh_master():
             return u["permissao"] == "master"
     return False
 
+def rerun():
+    st.experimental_rerun()
+
 # --- Telas ---
 
 def tela_login():
@@ -347,196 +350,193 @@ def cadastro_jurisprudencia():
     st.markdown("---")
     st.subheader("🔎 Buscar Jurisprudências")
 
-    termo_pesquisa = st.text_input("Digite termo para busca (número, descrição ou palavra-chave)")
-    botao_pesquisar = st.button("Pesquisar")
+    termo_pesquisa = st.text_input("Digite palavra-chave para buscar")
 
-    # Inicializa lista para exibir resultados
-    resultados = []
-
-    if botao_pesquisar and termo_pesquisa.strip():
-        termo = termo_pesquisa.strip().lower()
-        for jur in st.session_state.jurisprudencias:
-            numero = jur.get("Número", "").lower()
-            descricao = jur.get("Descrição", "").lower()
-            palavras = jur.get("Palavras-chave", [])
-            if (termo in numero) or (termo in descricao) or (any(termo in p for p in palavras)):
-                resultados.append(jur)
-        if not resultados:
-            st.info("Nenhuma jurisprudência encontrada para o termo pesquisado.")
-    else:
-        # Se não pesquisou, mostra todas cadastradas
-        resultados = st.session_state.jurisprudencias
-
-    if resultados:
-        for i, jur in enumerate(resultados):
-            st.markdown(f"### Jurisprudência {i+1}")
-            st.write(f"**Número:** {jur.get('Número', '')}")
-            st.write(f"**Descrição:** {jur.get('Descrição', '')}")
-            st.write(f"**Palavras-chave:** {', '.join(jur.get('Palavras-chave', []))}")
-            st.markdown("---")
-
+    if termo_pesquisa:
+        termo_lower = termo_pesquisa.lower()
+        resultados = [j for j in st.session_state.jurisprudencias if termo_lower in j["Número"].lower() or termo_lower in j["Descrição"].lower() or termo_lower in ",".join(j["Palavras-chave"])]
+        if resultados:
+            for res in resultados:
+                st.markdown(f"**Número:** {res['Número']}  \n**Descrição:** {res['Descrição']}")
+        else:
+            st.info("Nenhum resultado encontrado.")
 
 def despachos():
-    st.title("🗂️ Despachos")
+    st.title("📄 Cadastro de Despachos")
+
     with st.form("form_despachos"):
         numero = st.text_input("Número do Processo")
         descricao = st.text_area("Descrição do Despacho")
-        enviado_por = st.session_state.usuario_logado
-        enviar = st.form_submit_button("Cadastrar Despacho")
+        data = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+        enviado_por = st.text_input("Enviado Por (Usuário)")
+        enviar = st.form_submit_button("Salvar Despacho")
+
     if enviar:
         st.session_state.despachos.append({
             "Número": numero,
             "Descrição": descricao,
-            "Enviado Por": enviado_por,
-            "Data": datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            "Data": data,
+            "Enviado Por": enviado_por
         })
-        st.success("Despacho cadastrado com sucesso!")
+        st.success("Despacho salvo com sucesso!")
 
 def movimentacoes():
-    st.title("🔄 Movimentações")
+    st.title("↪️ Cadastro de Movimentações")
 
-    menu = st.radio("Escolha uma opção:", ["Cadastrar Movimentação", "Visualizar / Editar Movimentações"], index=0)
+    with st.form("form_movimentacoes"):
+        numero = st.text_input("Número do Processo")
+        descricao = st.text_area("Descrição da Movimentação")
+        prazo = st.text_input("Prazo (DD/MM/AAAA)")
+        usuario = st.text_input("Usuário que cadastrou")
+        enviar = st.form_submit_button("Salvar Movimentação")
 
-    if menu == "Cadastrar Movimentação":
-        with st.form("form_movimentacao"):
-            numero = st.text_input("Número do Processo")
-            descricao = st.text_area("Descrição da Movimentação")
-            prazo = st.date_input("Prazo", value=datetime.today())
-            enviar = st.form_submit_button("Salvar Movimentação")
-
-        if enviar:
-            nova_movimentacao = {
-                "Número": numero,
-                "Descrição": descricao,
-                "Prazo": prazo.strftime("%d/%m/%Y"),
-                "Usuário": st.session_state.usuario_logado
-            }
-            st.session_state.movimentacoes.append(nova_movimentacao)
-            st.success("Movimentação cadastrada com sucesso!")
-            rerun()
-
-    else:  # Visualizar / Editar
-        if not st.session_state.movimentacoes:
-            st.info("Nenhuma movimentação cadastrada.")
+    if enviar:
+        # Validar data prazo
+        try:
+            datetime.strptime(prazo, "%d/%m/%Y")
+        except ValueError:
+            st.error("Data do prazo inválida. Use o formato DD/MM/AAAA.")
             return
 
-        # Mostrar lista de movimentações para selecionar e editar
-        movs = st.session_state.movimentacoes
-        opcoes = [f"{m['Número']} - {m['Descrição'][:30]}... - Prazo: {m['Prazo']}" for m in movs]
-        escolha = st.selectbox("Selecione uma movimentação para editar ou excluir", [""] + opcoes)
-
-        if escolha:
-            idx = opcoes.index(escolha)
-            mov_sel = movs[idx]
-
-            with st.form("form_editar_movimentacao"):
-                numero = st.text_input("Número do Processo", value=mov_sel["Número"])
-                descricao = st.text_area("Descrição da Movimentação", value=mov_sel["Descrição"])
-                try:
-                    prazo_val = datetime.strptime(mov_sel["Prazo"], "%d/%m/%Y").date()
-                except:
-                    prazo_val = datetime.today().date()
-                prazo = st.date_input("Prazo", value=prazo_val)
-                enviar = st.form_submit_button("Salvar Alterações")
-                excluir = st.form_submit_button("Excluir Movimentação")
-
-            if enviar:
-                st.session_state.movimentacoes[idx] = {
-                    "Número": numero,
-                    "Descrição": descricao,
-                    "Prazo": prazo.strftime("%d/%m/%Y"),
-                    "Usuário": mov_sel.get("Usuário", st.session_state.usuario_logado)
-                }
-                st.success("Movimentação atualizada com sucesso!")
-                rerun()
-
-            if excluir:
-                st.session_state.movimentacoes.pop(idx)
-                st.success("Movimentação excluída com sucesso!")
-                rerun()
+        st.session_state.movimentacoes.append({
+            "Número": numero,
+            "Descrição": descricao,
+            "Prazo": prazo,
+            "Usuário": usuario
+        })
+        st.success("Movimentação salva com sucesso!")
 
 def agenda():
     st.title("📅 Agenda de Eventos")
 
-    modo = st.radio("Escolha a ação:", ["Adicionar Evento", "Editar/Excluir Evento"])
+    with st.form("form_agenda"):
+        data = st.date_input("Data do Evento")
+        evento = st.text_input("Nome do Evento")
+        descricao = st.text_area("Descrição do Evento")
+        representante = st.text_input("Advogado/Representante no ato")
+        local = st.text_input("Local da reunião")
+        modalidade = st.selectbox("Modalidade", ["Presencial", "Online"])
+        enviar = st.form_submit_button("Salvar Evento")
 
-    if modo == "Adicionar Evento":
-        with st.form("form_agenda"):
-            data = st.date_input("Data do Evento")
-            evento = st.text_input("Evento")
-            descricao = st.text_area("Descrição")
-            horario_texto = st.text_input("Horário do Evento (ex: 14:30)")
-            local = st.text_input("Local da Reunião")
-            representante = st.text_input("Advogado/Representante no Ato")
+    if enviar:
+        st.session_state.agenda.append({
+            "Data": data.strftime("%d/%m/%Y"),
+            "Evento": evento,
+            "Descrição": descricao,
+            "Representante": representante,
+            "Local": local,
+            "Modalidade": modalidade
+        })
+        st.success("Evento salvo com sucesso!")
 
-            def validar_hora(hora_str):
-                import re
-                return bool(re.match(r"^(?:[01]\d|2[0-3]):[0-5]\d$", hora_str))
+# Nova aba: Histórico
+def historico():
+    st.title("📜 Histórico Completo do Processo")
 
-            enviar = st.form_submit_button("Adicionar Evento")
+    numero_processo = st.text_input("Digite o Número do Processo para buscar o histórico")
 
-        if enviar:
-            if horario_texto and not validar_hora(horario_texto):
-                st.error("Formato do horário inválido. Use HH:MM (ex: 14:30).")
-                return
-            novo_evento = {
-                "Data": data.strftime("%d/%m/%Y"),
-                "Evento": evento,
-                "Descrição": descricao,
-                "Horário": horario_texto,
-                "Local": local,
-                "Representante": representante
-            }
-            st.session_state.agenda.append(novo_evento)
-            st.success("Evento adicionado com sucesso!")
+    if numero_processo:
+        processos = st.session_state.processos
+        movimentacoes = st.session_state.movimentacoes
+        despachos = st.session_state.despachos
+        agenda = st.session_state.agenda
 
-    elif modo == "Editar/Excluir Evento":
-        if not st.session_state.agenda:
-            st.info("Nenhum evento cadastrado.")
+        # Busca processo
+        processo = None
+        for p in processos:
+            if p.get("Número", "").strip() == numero_processo.strip():
+                processo = p
+                break
+
+        if processo is None:
+            st.warning("Processo não encontrado.")
             return
 
-        eventos = st.session_state.agenda
-        opcoes = [f"{e['Data']} - {e['Evento']} às {e.get('Horário', '')}" for e in eventos]
-        selecao = st.selectbox("Selecione o evento", [""] + opcoes)
+        st.subheader(f"📄 Dados do Processo: {numero_processo}")
+        st.write(f"**Assunto:** {processo.get('Assunto', '')}")
+        st.write(f"**Data de Distribuição:** {processo.get('Data de Distribuição', '')}")
+        st.write(f"**Tipo de Ação:** {processo.get('Tipo de Ação', '')}")
+        st.write(f"**Recurso:** {processo.get('Recurso', '')}")
+        st.write(f"**Local de Ajuizamento:** {processo.get('Local Ajuizamento', '')}")
+        st.write(f"**Turma / Vara / Plenário:** {processo.get('Turma/Vara/Plenário', '')}")
+        st.write(f"**Nome do Magistrado:** {processo.get('Nome Magistrado', '')}")
+        st.write(f"**Telefone Gabinete:** {processo.get('Telefone Gabinete', '')}")
 
-        if selecao:
-            idx = opcoes.index(selecao)
-            evento_sel = eventos[idx]
+        # Mostrar autores
+        autores = processo.get("Parte Autora", [])
+        if autores:
+            st.write("**Parte Autora:**")
+            for a in autores:
+                st.write(f"- {a.get('nome','')} - CPF/CNPJ: {a.get('cpf_cnpj','')}")
 
-            with st.form("form_editar_evento"):
-                data = st.date_input("Data do Evento", value=datetime.strptime(evento_sel["Data"], "%d/%m/%Y"))
-                evento = st.text_input("Evento", value=evento_sel["Evento"])
-                descricao = st.text_area("Descrição", value=evento_sel["Descrição"])
-                horario = st.text_input("Horário (HH:MM)", value=evento_sel.get("Horário", ""))
-                local = st.text_input("Local da Reunião", value=evento_sel.get("Local", ""))
-                representante = st.text_input("Advogado/Representante no Ato", value=evento_sel.get("Representante", ""))
-                salvar = st.form_submit_button("Salvar Alterações")
-                excluir = st.form_submit_button("Excluir Evento")
+        # Mostrar réus
+        reus = processo.get("Parte Ré", [])
+        if reus:
+            st.write("**Parte Ré:**")
+            for r in reus:
+                st.write(f"- {r.get('nome','')} - CPF/CNPJ: {r.get('cpf_cnpj','')}")
 
-            if salvar:
-                if horario and not validar_hora(horario):
-                    st.error("Formato do horário inválido. Use HH:MM.")
-                    return
-                eventos[idx] = {
-                    "Data": data.strftime("%d/%m/%Y"),
-                    "Evento": evento,
-                    "Descrição": descricao,
-                    "Horário": horario,
-                    "Local": local,
-                    "Representante": representante
-                }
-                st.success("Evento atualizado com sucesso!")
-                st.experimental_rerun()
+        # Coletar e ordenar todos os eventos do processo por data/hora
+        eventos = []
 
-            if excluir:
-                eventos.pop(idx)
-                st.success("Evento excluído com sucesso!")
-                st.experimental_rerun()
+        # Movimentações
+        for m in movimentacoes:
+            if m.get("Número", "").strip() == numero_processo.strip():
+                try:
+                    data_prazo = datetime.strptime(m["Prazo"], "%d/%m/%Y")
+                except:
+                    data_prazo = datetime.min
+                eventos.append({
+                    "tipo": "Movimentação",
+                    "descricao": m.get("Descrição", ""),
+                    "data": data_prazo,
+                    "usuario": m.get("Usuário", "")
+                })
 
+        # Despachos
+        for d in despachos:
+            if d.get("Número", "").strip() == numero_processo.strip():
+                try:
+                    data_despacho = datetime.strptime(d["Data"], "%d/%m/%Y %H:%M:%S")
+                except:
+                    data_despacho = datetime.min
+                eventos.append({
+                    "tipo": "Despacho",
+                    "descricao": d.get("Descrição", ""),
+                    "data": data_despacho,
+                    "usuario": d.get("Enviado Por", "")
+                })
+
+        # Agenda (eventos relacionados)
+        for e in agenda:
+            desc = e.get("Descrição", "")
+            if numero_processo.strip() in desc:
+                try:
+                    data_evento = datetime.strptime(e["Data"], "%d/%m/%Y")
+                except:
+                    data_evento = datetime.min
+                eventos.append({
+                    "tipo": "Evento de Agenda",
+                    "descricao": f"{e.get('Evento','')} - {desc}",
+                    "data": data_evento,
+                    "usuario": e.get("Representante", "")
+                })
+
+        if not eventos:
+            st.info("Nenhuma movimentação, despacho ou evento encontrado para este processo.")
+            return
+
+        # Ordenar cronologicamente
+        eventos = sorted(eventos, key=lambda x: x["data"])
+
+        st.subheader("🕒 Histórico Cronológico")
+        for ev in eventos:
+            data_str = ev["data"].strftime("%d/%m/%Y %H:%M:%S") if ev["data"].time() != datetime.min.time() else ev["data"].strftime("%d/%m/%Y")
+            st.markdown(f"**[{data_str}] {ev['tipo']}** - {ev['descricao']} _(Usuário: {ev['usuario']})_")
 
 def gerenciar_usuarios():
     if not usuario_eh_master():
-        st.warning("Você não tem permissão para acessar essa área.")
+        st.warning("Acesso restrito para usuários master.")
         return
     st.title("👥 Gerenciamento de Usuários")
 
@@ -545,42 +545,40 @@ def gerenciar_usuarios():
         usuario = st.text_input("Usuário")
         senha = st.text_input("Senha", type="password")
         permissao = st.selectbox("Permissão", ["normal", "master"])
-        enviar = st.form_submit_button("Cadastrar Usuário")
-    if enviar:
-        novo_usuario = {
+        cadastrar = st.form_submit_button("Cadastrar Usuário")
+    if cadastrar:
+        st.session_state.usuarios.append({
             "nome": nome,
             "usuario": usuario,
             "senha": senha,
             "permissao": permissao
-        }
-        st.session_state.usuarios.append(novo_usuario)
+        })
         st.success("Usuário cadastrado com sucesso!")
 
     st.markdown("---")
+    st.subheader("Lista de Usuários")
 
-    st.subheader("Usuários Cadastrados")
     for u in st.session_state.usuarios:
-        st.write(f"Nome: {u['nome']} - Usuário: {u['usuario']} - Permissão: {u['permissao']}")
+        st.write(f"Nome: {u['nome']} | Usuário: {u['usuario']} | Permissão: {u['permissao']}")
 
 def main():
     if not st.session_state.logado:
         tela_login()
         return
 
-    with st.sidebar:
-        escolha = option_menu(
-            menu_title="Menu Principal",
-            options=["Início", "Cadastro Processo", "Cadastro Jurisprudência", "Despachos", "Movimentações", "Agenda", "Gerenciar Usuários", "Logout"],
-            icons=["house", "file-earmark-text", "book", "file-text", "arrow-repeat", "calendar", "people", "box-arrow-right"],
-            menu_icon="list",
-            default_index=0,
-            styles={
-                "container": {"padding": "5px"},
-                "icon": {"color": "blue", "font-size": "20px"},
-                "nav-link": {"font-size": "16px", "text-align": "left", "margin":"0px", "--hover-color": "#eee"},
-                "nav-link-selected": {"background-color": "#0B3D91", "color": "white"},
-            }
-        )
+    escolha = option_menu(
+        menu_title="Menu Principal",
+        options=["Início", "Cadastro Processo", "Cadastro Jurisprudência", "Despachos", "Movimentações", "Agenda", "Histórico", "Gerenciar Usuários", "Logout"],
+        icons=["house", "file-earmark-text", "book", "file-text", "arrow-repeat", "calendar", "clock-history", "people", "box-arrow-right"],
+        menu_icon="list",
+        default_index=0,
+        styles={
+            "container": {"padding": "5px"},
+            "icon": {"color": "blue", "font-size": "20px"},
+            "nav-link": {"font-size": "16px", "text-align": "left", "margin":"0px", "--hover-color": "#eee"},
+            "nav-link-selected": {"background-color": "#0B3D91", "color": "white"},
+        }
+    )
 
     if escolha == "Início":
         inicio()
@@ -594,6 +592,8 @@ def main():
         movimentacoes()
     elif escolha == "Agenda":
         agenda()
+    elif escolha == "Histórico":
+        historico()
     elif escolha == "Gerenciar Usuários":
         gerenciar_usuarios()
     elif escolha == "Logout":
@@ -601,12 +601,12 @@ def main():
         st.session_state.usuario_logado = None
         st.experimental_rerun()
 
-    # Rodapé fixo
-    st.markdown("""
-    <div class="footer">
-        Desenvolvido por Igor Sansone - Setor de Secretaria
-    </div>
-    """, unsafe_allow_html=True)
-
 if __name__ == "__main__":
     main()
+
+# Rodapé fixo
+st.markdown("""
+<div class="footer">
+Desenvolvido por Igor Sansone - Setor de Secretaria
+</div>
+""", unsafe_allow_html=True)
