@@ -420,7 +420,6 @@ def movimentacoes():
             st.info("Nenhuma movimentação cadastrada.")
 
 def agenda():
-def agenda():
     st.title("📅 Agenda de Eventos")
 
     # Campo para pesquisa
