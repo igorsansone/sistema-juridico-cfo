@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 from streamlit_option_menu import option_menu
-from streamlit.runtime.scriptrunner import rerun
 import altair as alt
 import streamlit.components.v1 as components
 
