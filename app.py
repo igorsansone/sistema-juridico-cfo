@@ -344,36 +344,42 @@ def cadastro_jurisprudencia():
         st.success("Jurisprudência cadastrada com sucesso.")
 
 def despachos():
-    st.title("📜 Cadastro de Despachos")
+    st.title("📄 Cadastro de Despachos")
 
+    # Puxar lista de processos cadastrados para usar no selectbox
     processos = st.session_state.processos
-    opcoes_numero = [p["Número"] for p in processos] if processos else []
+    numeros_processos = [p["Número"] for p in processos]
 
     with st.form("form_despacho"):
-        if opcoes_numero:
-            numero_processo = st.selectbox("Número do Processo", options=opcoes_numero)
-        else:
-            st.warning("Nenhum processo cadastrado ainda.")
-            numero_processo = None
+        # Selectbox para escolher número do processo
+        numero_processo = st.selectbox("Número do Processo", options=numeros_processos)
+        texto_despacho = st.text_area("Texto do Despacho")
         data_despacho = st.date_input("Data do Despacho", value=datetime.today())
-        descricao = st.text_area("Descrição do Despacho")
-        usuario_responsavel = st.session_state.usuario_logado
         submit = st.form_submit_button("Salvar Despacho")
 
     if submit:
-        if not numero_processo:
-            st.error("Selecione um número de processo válido.")
+        if numero_processo.strip() == "":
+            st.error("Número do processo é obrigatório.")
             return
-        if descricao.strip() == "":
-            st.error("A descrição do despacho é obrigatória.")
+        if texto_despacho.strip() == "":
+            st.error("Texto do despacho é obrigatório.")
             return
         st.session_state.despachos.append({
             "Número": numero_processo,
+            "Texto": texto_despacho,
             "Data": data_despacho.strftime("%d/%m/%Y"),
-            "Descrição": descricao,
-            "Responsável": usuario_responsavel
+            "Cadastrado por": st.session_state.usuario_logado
         })
         st.success("Despacho cadastrado com sucesso.")
+
+    # Mostrar lista de despachos já cadastrados
+    st.subheader("Despachos Cadastrados")
+    if st.session_state.despachos:
+        df_despachos = pd.DataFrame(st.session_state.despachos)
+        st.dataframe(df_despachos)
+    else:
+        st.info("Nenhum despacho cadastrado.")
+
 
 def movimentacoes():
     st.title("📅 Movimentações e Prazos")
