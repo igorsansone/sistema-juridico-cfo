@@ -347,277 +347,154 @@ def despachos():
     st.title("📄 Cadastro de Despachos")
 
     # Puxar lista de processos cadastrados para usar no selectbox
-    processos = st.session_state.processos
-    numeros_processos = [p["Número"] for p in processos]
+    opcoes_processos = [p["Número"] for p in st.session_state.processos]
+    if not opcoes_processos:
+        st.info("Cadastre um processo antes de inserir despachos.")
+        return
 
     with st.form("form_despacho"):
-        # Selectbox para escolher número do processo
-        numero_processo = st.selectbox("Número do Processo", options=numeros_processos)
-        texto_despacho = st.text_area("Texto do Despacho")
+        numero_processo = st.selectbox("Número do Processo", opcoes_processos)
         data_despacho = st.date_input("Data do Despacho", value=datetime.today())
+        texto_despacho = st.text_area("Texto do Despacho")
         submit = st.form_submit_button("Salvar Despacho")
 
     if submit:
-        if numero_processo.strip() == "":
-            st.error("Número do processo é obrigatório.")
-            return
         if texto_despacho.strip() == "":
-            st.error("Texto do despacho é obrigatório.")
+            st.error("O texto do despacho não pode ficar vazio.")
             return
         st.session_state.despachos.append({
             "Número": numero_processo,
-            "Texto": texto_despacho,
             "Data": data_despacho.strftime("%d/%m/%Y"),
-            "Cadastrado por": st.session_state.usuario_logado
+            "Texto": texto_despacho
         })
         st.success("Despacho cadastrado com sucesso.")
 
-    # Mostrar lista de despachos já cadastrados
-    st.subheader("Despachos Cadastrados")
-    if st.session_state.despachos:
-        df_despachos = pd.DataFrame(st.session_state.despachos)
-        st.dataframe(df_despachos)
-    else:
-        st.info("Nenhum despacho cadastrado.")
-
-
 def movimentacoes():
-    st.title("📅 Movimentações e Prazos")
+    st.title("📑 Cadastro de Movimentações")
 
-    processos = st.session_state.processos
-    opcoes_numero = [p["Número"] for p in processos] if processos else []
+    opcoes_processos = [p["Número"] for p in st.session_state.processos]
+    if not opcoes_processos:
+        st.info("Cadastre um processo antes de inserir movimentações.")
+        return
 
     with st.form("form_movimentacao"):
-        if opcoes_numero:
-            numero_processo = st.selectbox("Número do Processo", options=opcoes_numero)
-        else:
-            st.warning("Nenhum processo cadastrado ainda.")
-            numero_processo = None
-        prazo = st.text_input("Prazo (dd/mm/aaaa)")
-        descricao_mov = st.text_area("Descrição")
+        numero_processo = st.selectbox("Número do Processo", opcoes_processos)
+        data_movimentacao = st.date_input("Data da Movimentação", value=datetime.today())
+        descricao_movimentacao = st.text_input("Descrição da Movimentação")
+        prazo_movimentacao = st.text_input("Prazo (dd/mm/aaaa)")
         submit = st.form_submit_button("Salvar Movimentação")
 
     if submit:
-        if not numero_processo:
-            st.error("Selecione um número de processo válido.")
+        if descricao_movimentacao.strip() == "":
+            st.error("A descrição da movimentação não pode ficar vazia.")
             return
-        if descricao_mov.strip() == "":
-            st.error("Descrição da movimentação é obrigatória.")
-            return
+        # Validar prazo
         try:
-            prazo_dt = datetime.strptime(prazo, "%d/%m/%Y")
-        except Exception:
-            st.error("Data de prazo inválida! Use o formato dd/mm/aaaa.")
+            prazo_dt = datetime.strptime(prazo_movimentacao, "%d/%m/%Y")
+            prazo_str = prazo_dt.strftime("%d/%m/%Y")
+        except:
+            st.error("Data de prazo inválida, use o formato dd/mm/aaaa.")
             return
-
         st.session_state.movimentacoes.append({
             "Número": numero_processo,
-            "Prazo": prazo,
-            "Descrição": descricao_mov
+            "Data": data_movimentacao.strftime("%d/%m/%Y"),
+            "Descrição": descricao_movimentacao,
+            "Prazo": prazo_str
         })
         st.success("Movimentação cadastrada com sucesso.")
+
 def agenda():
-    st.title("📆 Agenda - Compromissos e Reuniões")
+    st.title("📆 Agenda")
 
-    # Inicializa lista na session_state
-    if "agenda" not in st.session_state:
-        st.session_state.agenda = []
-
-    # Formulário para cadastro de evento
     with st.form("form_agenda"):
-        data_evento = st.date_input("Data do Evento")
-        hora_evento = st.text_input("Hora do Evento (HH:MM)", max_chars=5, help="Formato 24h, ex: 14:30")
-        evento = st.text_input("Título do Evento")
+        data_evento = st.date_input("Data do Evento", value=datetime.today())
+        evento = st.text_input("Evento")
         descricao = st.text_area("Descrição")
-        local = st.text_input("Local da Reunião")
-        advogado_representante = st.text_input("Advogado / Representante no Ato")
-        modalidade = st.selectbox("Modalidade", ["Presencial", "Online"])
-        submit = st.form_submit_button("Cadastrar Evento")
+        submit = st.form_submit_button("Salvar Evento")
 
     if submit:
-        # Validação básica da hora
-        try:
-            hora_obj = datetime.strptime(hora_evento, "%H:%M").time()
-        except Exception:
-            st.error("Hora inválida. Use o formato HH:MM (24h).")
-            return
-
         st.session_state.agenda.append({
             "Data": data_evento.strftime("%d/%m/%Y"),
-            "Hora": hora_evento,
             "Evento": evento,
-            "Descrição": descricao,
-            "Local": local,
-            "Advogado": advogado_representante,
-            "Modalidade": modalidade
+            "Descrição": descricao
         })
-        st.success("Evento cadastrado na agenda.")
+        st.success("Evento adicionado à agenda.")
 
-    st.markdown("---")
-    st.subheader("Eventos Cadastrados")
-
-    # Mostra lista de eventos com botões Editar e Excluir
-    for idx, ev in enumerate(st.session_state.agenda):
-        with st.expander(f"{ev['Data']} {ev['Hora']} - {ev['Evento']}"):
-            st.write(f"**Descrição:** {ev['Descrição']}")
-            st.write(f"**Local:** {ev['Local']}")
-            st.write(f"**Advogado/Representante:** {ev['Advogado']}")
-            st.write(f"**Modalidade:** {ev['Modalidade']}")
-
-            col1, col2 = st.columns([1, 1])
-            with col1:
-                botao_editar_key = f"editar_evento_{idx}"
-                if st.button("Editar", key=botao_editar_key):
-                    # Carregar dados do evento para edição - só uma forma simples de edição
-                    st.session_state["editar_evento_idx"] = idx
-                    st.session_state["editar_evento_data"] = datetime.strptime(ev["Data"], "%d/%m/%Y")
-                    st.session_state["editar_evento_hora"] = ev["Hora"]
-                    st.session_state["editar_evento_titulo"] = ev["Evento"]
-                    st.session_state["editar_evento_descricao"] = ev["Descrição"]
-                    st.session_state["editar_evento_local"] = ev["Local"]
-                    st.session_state["editar_evento_advogado"] = ev["Advogado"]
-                    st.session_state["editar_evento_modalidade"] = ev["Modalidade"]
-                    st.experimental_rerun()
-            with col2:
-                botao_excluir_key = f"excluir_evento_{idx}"
-                if st.button("Excluir", key=botao_excluir_key):
-                    # Para evitar rerun infinito, usar flag na session_state
-                    if f"excluiu_evento_{idx}" not in st.session_state:
-                        st.session_state.agenda.pop(idx)
-                        st.session_state[f"excluiu_evento_{idx}"] = True
-                        st.success("Evento excluído.")
-                        st.experimental_rerun()
-
-    # Se estiver editando um evento
-    if "editar_evento_idx" in st.session_state:
-        idx = st.session_state["editar_evento_idx"]
-        st.markdown("---")
-        st.subheader("Editar Evento")
-
-        with st.form("form_editar_evento"):
-            data_edit = st.date_input("Data do Evento", value=st.session_state["editar_evento_data"])
-            hora_edit = st.text_input("Hora do Evento (HH:MM)", value=st.session_state["editar_evento_hora"])
-            titulo_edit = st.text_input("Título do Evento", value=st.session_state["editar_evento_titulo"])
-            descricao_edit = st.text_area("Descrição", value=st.session_state["editar_evento_descricao"])
-            local_edit = st.text_input("Local da Reunião", value=st.session_state["editar_evento_local"])
-            advogado_edit = st.text_input("Advogado / Representante no Ato", value=st.session_state["editar_evento_advogado"])
-            modalidade_edit = st.selectbox("Modalidade", ["Presencial", "Online"], index=0 if st.session_state["editar_evento_modalidade"]=="Presencial" else 1)
-            salvar = st.form_submit_button("Salvar Alterações")
-
-        if salvar:
-            # Validação da hora
-            try:
-                datetime.strptime(hora_edit, "%H:%M")
-            except Exception:
-                st.error("Hora inválida. Use o formato HH:MM (24h).")
-                return
-            st.session_state.agenda[idx] = {
-                "Data": data_edit.strftime("%d/%m/%Y"),
-                "Hora": hora_edit,
-                "Evento": titulo_edit,
-                "Descrição": descricao_edit,
-                "Local": local_edit,
-                "Advogado": advogado_edit,
-                "Modalidade": modalidade_edit
-            }
-            st.success("Evento atualizado com sucesso.")
-            # Limpar sessão de edição
-            for key in ["editar_evento_idx", "editar_evento_data", "editar_evento_hora", "editar_evento_titulo",
-                        "editar_evento_descricao", "editar_evento_local", "editar_evento_advogado", "editar_evento_modalidade"]:
-                if key in st.session_state:
-                    del st.session_state[key]
-            st.experimental_rerun()
+    if st.session_state.agenda:
+        st.markdown("### Eventos Cadastrados")
+        df = pd.DataFrame(st.session_state.agenda)
+        st.dataframe(df)
 
 def historico():
     st.title("📜 Histórico do Processo")
 
-    numero = st.text_input("Informe o número do processo para visualizar o histórico")
+    opcoes_processos = [p["Número"] for p in st.session_state.processos]
+    if not opcoes_processos:
+        st.info("Nenhum processo cadastrado.")
+        return
+
+    numero = st.selectbox("Selecione o número do processo", opcoes_processos)
 
     if numero:
-        # Coletar todos os registros relacionados ao processo
-        processos = st.session_state.processos
-        movimentacoes = st.session_state.movimentacoes
-        despachos = st.session_state.despachos
-
         hist = []
-
-        # Processos (cadastrados)
-        for p in processos:
-            if p["Número"] == numero:
-                hist.append({
-                    "Data": p.get("Data Distribuição", ""),
-                    "Evento": f"Cadastro do processo {numero}",
-                    "Detalhes": f"Assunto: {p.get('Assunto', '')}"
-                })
-
-        # Movimentações
-        for m in movimentacoes:
+        # Buscar movimentações
+        for m in st.session_state.movimentacoes:
             if m["Número"] == numero:
                 hist.append({
-                    "Data": m.get("Prazo", ""),
+                    "Data": m.get("Data", ""),
                     "Evento": "Movimentação",
                     "Detalhes": m.get("Descrição", "")
                 })
-
-        # Despachos
-        for d in despachos:
+        # Buscar despachos
+        for d in st.session_state.despachos:
             if d["Número"] == numero:
                 hist.append({
                     "Data": d.get("Data", ""),
                     "Evento": "Despacho",
-                    "Detalhes": d.get("Descrição", "")
+                    "Detalhes": d.get("Texto", "")
                 })
-
-        # Ordenar histórico pela data (considerando formato dd/mm/yyyy)
-        def to_dt(data_str):
-            try:
-                return datetime.strptime(data_str, "%d/%m/%Y")
-            except:
-                return datetime(1900,1,1)
-        hist_sorted = sorted(hist, key=lambda x: to_dt(x["Data"]))
-
+        # Ordenar cronologicamente
+        hist_sorted = sorted(hist, key=lambda x: datetime.strptime(x["Data"], "%d/%m/%Y") if x["Data"] else datetime.min)
         if hist_sorted:
-            for item in hist_sorted:
-                st.markdown(f"**{item['Data']}** - {item['Evento']}: {item['Detalhes']}")
+            df = pd.DataFrame(hist_sorted)
+            st.dataframe(df)
         else:
-            st.info("Nenhum registro encontrado para este processo.")
+            st.info("Nenhuma movimentação ou despacho encontrado para esse processo.")
 
-# Menu lateral
-if st.session_state.logado:
-    with st.sidebar:
+# Menu lateral e roteamento
+def main():
+    if not st.session_state.logado:
+        tela_login()
+    else:
         escolha = option_menu(
-            menu_title="Menu CFO Jurídico",
-            options=["Início", "Cadastro Processo", "Jurisprudência", "Despacho", "Movimentações", "Agenda", "Histórico", "Sair"],
-            icons=["house", "file-earmark-text", "book", "clipboard-data", "calendar-check", "calendar-event", "clock-history", "box-arrow-right"],
-            menu_icon="briefcase",
-            default_index=0
+            menu_title="Menu",
+            options=["Início", "Cadastro Processo", "Jurisprudência", "Despachos", "Movimentações", "Agenda", "Histórico", "Sair"],
+            icons=["house", "file-earmark-text", "book", "file-text", "list-task", "calendar", "clock-history", "box-arrow-right"],
+            menu_icon="cast",
+            default_index=0,
+            orientation="vertical",
         )
 
-    if escolha == "Início":
-        inicio()
-    elif escolha == "Cadastro Processo":
-        cadastro_processo()
-    elif escolha == "Jurisprudência":
-        cadastro_jurisprudencia()
-    elif escolha == "Despachos":
-        despachos()
-    elif escolha == "Movimentações":
-        movimentacoes()
-    elif escolha == "Agenda":
-        agenda()
-    elif escolha == "Histórico":
-        historico()
-    elif escolha == "Sair":
-        st.session_state.logado = False
-        st.session_state.usuario_logado = None
-        st.experimental_rerun()
-else:
-    tela_login()
+        if escolha == "Início":
+            inicio()
+        elif escolha == "Cadastro Processo":
+            cadastro_processo()
+        elif escolha == "Jurisprudência":
+            cadastro_jurisprudencia()
+        elif escolha == "Despachos":
+            despachos()
+        elif escolha == "Movimentações":
+            movimentacoes()
+        elif escolha == "Agenda":
+            agenda()
+        elif escolha == "Histórico":
+            historico()
+        elif escolha == "Sair":
+            st.session_state.logado = False
+            st.session_state.usuario_logado = None
+            st.experimental_rerun()
 
-# Rodapé fixo
-st.markdown(
-    """
-    <div class="footer">
-    Desenvolvido por Igor Sansone - Setor de Secretaria - Para uso do CFO
-    </div>
-    """, unsafe_allow_html=True)
+        st.markdown("""<div class="footer">Desenvolvido por Igor Sansone - Setor de Secretaria - Para uso CFO</div>""", unsafe_allow_html=True)
+
+if __name__ == "__main__":
+    main()
