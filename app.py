@@ -283,7 +283,6 @@ def cadastro_processo():
     tipo_acao_default = st.session_state.get("tipo_acao", tipos_acao[0])
     recurso_default = st.session_state.get("recurso", recursos[0])
     local_ajuizamento_default = st.session_state.get("local_ajuizamento", locais_ajuizamento[0])
-    turma_vara_plenario_default =
     turma_vara_plenario_default = st.session_state.get("turma_vara_plenario", "")
     assunto = st.text_input("Assunto do Processo", value=assunto_default)
     numero = st.text_input("Número do Processo", value=numero_default)
