@@ -6,6 +6,20 @@ from datetime import datetime
 from streamlit_option_menu import option_menu
 import altair as alt
 import streamlit.components.v1 as components
+# Inicialização segura das variáveis de sessão
+if "logado" not in st.session_state:
+    st.session_state.logado = False
+if "usuario_logado" not in st.session_state:
+    st.session_state.usuario_logado = ""
+if "usuarios" not in st.session_state:
+    st.session_state.usuarios = [
+        {"nome": "Admin", "usuario": "admin", "senha": "admin123", "permissao": "master"},
+        {"nome": "Usuário", "usuario": "user", "senha": "123", "permissao": "normal"}
+    ]
+# Garante que todos os usuários tenham 'permissao'
+for u in st.session_state.usuarios:
+    if "permissao" not in u:
+        u["permissao"] = "normal"
 
 # Função para forçar rerun (usar se precisar)
 def forcar_rerun():
