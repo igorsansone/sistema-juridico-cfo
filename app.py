@@ -4,187 +4,571 @@ import json
 import os
 from datetime import datetime
 from streamlit_option_menu import option_menu
+import altair as alt
+import streamlit.components.v1 as components
 
-st.set_page_config(layout="wide")
+# Função para forçar rerun (usar se precisar)
+def forcar_rerun():
+    params = st.experimental_get_query_params()
+    count = int(params["count"][0]) if "count" in params else 0
+    st.experimental_set_query_params(count=str(count + 1))
 
-# Funções de utilidade para carregar/salvar dados
-def carregar_dados(arquivo, padrao):
-    if os.path.exists(arquivo):
-        with open(arquivo, "r", encoding="utf-8") as f:
-            return json.load(f)
-    return padrao
+st.set_page_config(layout="wide", page_title="Processos Eleição CROS 2025 - CFO")
 
-def salvar_dados(arquivo, dados):
-    with open(arquivo, "w", encoding="utf-8") as f:
-        json.dump(dados, f, indent=4, ensure_ascii=False)
+# CSS customizado (mantém o seu estilo)
+def aplicar_css():
+    st.markdown("""
+    <style>
+    body {
+        font-family: 'Segoe UI', sans-serif;
+    }
+    .footer {
+        position: fixed;
+        bottom: 0;
+        width: 100%;
+        background-color: #0B3D91;
+        color: white;
+        text-align: center;
+        padding: 6px 0;
+        font-weight: 600;
+        font-size: 14px;
+        z-index: 9999;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+aplicar_css()
 
-# Arquivos de dados
-ARQUIVOS = {
-    "processos": "dados_processos.json",
-    "movimentacoes": "dados_movimentacoes.json",
-    "agenda": "dados_agenda.json",
-    "despachos": "dados_despachos.json",
-    "jurisprudencia": "dados_jurisprudencia.json",
-    "historico": "dados_historico.json",
-    "usuarios": "usuarios.json"
-}
+# --- Persistência JSON para os dados ---
 
-# Carregar dados
-dados = {chave: carregar_dados(ARQUIVOS[chave], []) for chave in ARQUIVOS}
-
-# --- Login ---
-st.sidebar.title("Login")
-usuario = st.sidebar.text_input("Usuário")
-senha = st.sidebar.text_input("Senha", type="password")
-botao_login = st.sidebar.button("Entrar")
-
-if botao_login:
-    usuarios = dados["usuarios"]
-    usuario_valido = next((u for u in usuarios if u["usuario"] == usuario and u["senha"] == senha), None)
-    if usuario_valido:
-        st.session_state["logado"] = True
-        st.session_state["usuario"] = usuario
+def carregar_dados(nome_arquivo, default):
+    if os.path.exists(nome_arquivo):
+        with open(nome_arquivo, 'r', encoding='utf-8') as f:
+            try:
+                return json.load(f)
+            except:
+                return default
     else:
-        st.sidebar.error("Usuário ou senha inválidos")
+        return default
 
-if st.session_state.get("logado"):
+def salvar_dados(nome_arquivo, dados):
+    with open(nome_arquivo, 'w', encoding='utf-8') as f:
+        json.dump(dados, f, ensure_ascii=False, indent=4)
 
-    with st.sidebar:
-        selecionado = option_menu("Menu Principal", [
-            "Início", "Processos", "Movimentações", "Despachos", "Jurisprudência",
-            "Agenda", "Relatórios", "Histórico", "Usuários"
-        ], icons=['house', 'folder', 'repeat', 'file-earmark-text', 'book', 
-                  'calendar3', 'bar-chart', 'clock-history', 'person-badge'], menu_icon="cast")
+# Arquivos para salvar os dados
+ARQ_USUARIOS = "usuarios.json"
+ARQ_PROCESSOS = "processos.json"
+ARQ_JURISPRUDENCIAS = "jurisprudencias.json"
+ARQ_DESPACHOS = "despachos.json"
+ARQ_MOVIMENTACOES = "movimentacoes.json"
+ARQ_AGENDA = "agenda.json"
 
-    st.markdown(f"### Bem-vindo, {st.session_state['usuario']}")
+# Carregando dados com defaults
+st.session_state.usuarios = carregar_dados(ARQ_USUARIOS, [
+    {"nome": "Admin", "usuario": "admin", "senha": "admin123", "permissao": "master"},
+    {"nome": "Usuário", "usuario": "user", "senha": "123", "permissao": "normal"}
+])
+st.session_state.processos = carregar_dados(ARQ_PROCESSOS, [])
+st.session_state.jurisprudencias = carregar_dados(ARQ_JURISPRUDENCIAS, [])
+st.session_state.despachos = carregar_dados(ARQ_DESPACHOS, [])
+st.session_state.movimentacoes = carregar_dados(ARQ_MOVIMENTACOES, [])
+st.session_state.agenda = carregar_dados(ARQ_AGENDA, [])
 
-    # --- Início ---
-    if selecionado == "Início":
-        st.subheader("Painel Geral")
-        st.write("Resumo dos processos, movimentações, prazos e eventos.")
-        st.metric("Total de Processos", len(dados["processos"]))
-        st.metric("Movimentações", len(dados["movimentacoes"]))
-        st.metric("Despachos", len(dados["despachos"]))
-        st.metric("Eventos na Agenda", len(dados["agenda"]))
+# Listas fixas para selectboxes (mantidas do seu código)
+tipos_acao = [
+    "", "Ação Civil Pública", "Ação Popular", "Ação de Improbidade Administrativa", "Mandado de Segurança",
+    "Ação Declaratória de Nulidade de Ato Administrativo", "Ação Anulatória de Ato Administrativo",
+    "Ação de Cobrança contra a Administração Pública", "Ação de Obrigação de Fazer contra o Poder Público",
+    "Ação Indenizatória por Atos da Administração", "Ação de Responsabilidade por Dano ao Erário",
+    "Ação de Responsabilização Ética de Servidor Público", "Ação Ética contra Órgão da Administração",
+    "Ação Ética sobre Conduta Funcional de Agente Público", "Ação de Controle de Constitucionalidade",
+    "Ação Direta de Inconstitucionalidade", "Ação Declaratória de Constitucionalidade",
+    "Ação Direta de Inconstitucionalidade por Omissão", "Ação Rescisória contra Decisões Administrativas",
+    "Ação Cautelar em Face da Administração", "Ação de Intervenção Federal",
+    "Ação sobre Licitações e Contratos Administrativos", "Ação sobre Concurso Público",
+    "Ação sobre Servidores Públicos Federais", "Ação Previdenciária contra o INSS",
+    "Ação sobre Saúde Pública (fornecimento de medicamentos etc.)", "Ação sobre Direito à Educação Pública",
+    "Ação Coletiva sobre Políticas Públicas", "Outras"
+]
 
-    # --- Processos ---
-    if selecionado == "Processos":
-        st.subheader("Cadastro de Processos")
-        with st.form("cadastro_processo"):
-            numero = st.text_input("Número do Processo")
-            autor = st.text_input("Autor")
-            reu = st.text_input("Réu")
-            vara = st.text_input("Vara")
-            data = st.date_input("Data de Distribuição", format="DD/MM/YYYY")
-            btn = st.form_submit_button("Salvar")
-            if btn:
-                novo = {"numero": numero, "autor": autor, "reu": reu, "vara": vara, "data": data.strftime("%d/%m/%Y")}
-                dados["processos"].append(novo)
-                salvar_dados(ARQUIVOS["processos"], dados["processos"])
-                st.success("Processo cadastrado!")
+recursos = [
+    "", "Apelação", "Agravo de Instrumento", "Embargos de Declaração", "Recurso Especial",
+    "Recurso Extraordinário", "Mandado de Segurança", "Habeas Corpus", "Recurso Ordinário",
+    "Agravo Interno", "Embargos Infringentes", "Embargos à Execução", "Revisão Criminal",
+    "Correição Parcial", "Recurso em Sentido Estrito", "Conflito de Competência", "Recurso Adesivo",
+    "Agravo Regimental", "Outros"
+]
 
-        st.dataframe(pd.DataFrame(dados["processos"]))
+locais_ajuizamento = ["", "JF", "TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6", "STJ", "STF"]
 
-    # --- Movimentações ---
-    if selecionado == "Movimentações":
-        st.subheader("Registro de Movimentações")
-        with st.form("form_movimentacao"):
-            numero = st.text_input("Número do Processo")
-            descricao = st.text_area("Descrição")
-            prazo = st.date_input("Prazo", format="DD/MM/YYYY")
-            btn = st.form_submit_button("Registrar")
-            if btn:
-                nova = {"numero": numero, "descricao": descricao, "prazo": prazo.strftime("%d/%m/%Y")}
-                dados["movimentacoes"].append(nova)
-                salvar_dados(ARQUIVOS["movimentacoes"], dados["movimentacoes"])
-                st.success("Movimentação registrada!")
+# Inicialização de session state para login e demais variáveis que seu código usa
+if "logado" not in st.session_state:
+    st.session_state.logado = False
+if "usuario_logado" not in st.session_state:
+    st.session_state.usuario_logado = None
+if "autores" not in st.session_state:
+    st.session_state.autores = [{"nome": "", "cpf_cnpj": ""}]
+if "reus" not in st.session_state:
+    st.session_state.reus = [{"nome": "", "cpf_cnpj": ""}]
 
-        st.dataframe(pd.DataFrame(dados["movimentacoes"]))
+# Funções básicas de autenticação (mantidas)
+def validar_login(usuario, senha):
+    for u in st.session_state.usuarios:
+        if u["usuario"] == usuario and u["senha"] == senha:
+            return u
+    return None
 
-    # --- Despachos ---
-    if selecionado == "Despachos":
-        st.subheader("Despachos")
-        with st.form("form_despacho"):
-            numero = st.text_input("Número do Processo")
-            texto = st.text_area("Texto do Despacho")
-            providencias = st.text_input("Providências")
-            btn = st.form_submit_button("Salvar Despacho")
-            if btn:
-                novo = {"numero": numero, "texto": texto, "providencias": providencias, "data": datetime.now().strftime("%d/%m/%Y %H:%M")}
-                dados["despachos"].append(novo)
-                salvar_dados(ARQUIVOS["despachos"], dados["despachos"])
-                st.success("Despacho salvo!")
+def usuario_eh_master():
+    user = st.session_state.usuario_logado
+    for u in st.session_state.usuarios:
+        if u["usuario"] == user:
+            return u["permissao"] == "master"
+    return False
 
-        st.dataframe(pd.DataFrame(dados["despachos"]))
+# --- Telas mantidas do seu código original ---
 
-    # --- Jurisprudência ---
-    if selecionado == "Jurisprudência":
-        st.subheader("Cadastro de Jurisprudência")
-        with st.form("form_juris"):
-            tribunal = st.selectbox("Tribunal", ["JF", "TRF"])
-            tema = st.text_input("Tema")
-            ementa = st.text_area("Ementa")
-            btn = st.form_submit_button("Salvar Jurisprudência")
-            if btn:
-                novo = {"tribunal": tribunal, "tema": tema, "ementa": ementa}
-                dados["jurisprudencia"].append(novo)
-                salvar_dados(ARQUIVOS["jurisprudencia"], dados["jurisprudencia"])
-                st.success("Jurisprudência cadastrada!")
+def tela_login():
+    st.title("🔐 Login - Sistema Jurídico CFO")
+    with st.form("form_login"):
+        usuario = st.text_input("Usuário")
+        senha = st.text_input("Senha", type="password")
+        submit = st.form_submit_button("Entrar")
+    if submit:
+        user = validar_login(usuario, senha)
+        if user:
+            st.session_state.logado = True
+            st.session_state.usuario_logado = usuario
+            st.success(f"Bem-vindo, {user['nome']}!")
+            st.experimental_rerun()
+        else:
+            st.error("Usuário ou senha inválidos.")
 
-        st.dataframe(pd.DataFrame(dados["jurisprudencia"]))
+def inicio():
+    st.title("🏠 Painel Inicial - CFO Jurídico")
 
-    # --- Agenda ---
-    if selecionado == "Agenda":
-        st.subheader("Agenda de Compromissos")
-        with st.form("form_agenda"):
-            data = st.date_input("Data")
-            hora = st.time_input("Hora")
-            local = st.text_input("Local")
-            representante = st.text_input("Advogado/Representante")
-            descricao = st.text_area("Descrição")
-            btn = st.form_submit_button("Agendar")
-            if btn:
-                novo = {"data": data.strftime("%d/%m/%Y"), "hora": hora.strftime("%H:%M"),
-                        "local": local, "representante": representante, "descricao": descricao}
-                dados["agenda"].append(novo)
-                salvar_dados(ARQUIVOS["agenda"], dados["agenda"])
-                st.success("Evento agendado!")
+    processos = st.session_state.processos
+    agenda = st.session_state.agenda
+    movs = st.session_state.movimentacoes
 
-        st.dataframe(pd.DataFrame(dados["agenda"]))
+    hoje = pd.Timestamp(datetime.today().date())
 
-    # --- Relatórios ---
-    if selecionado == "Relatórios":
-        st.subheader("Relatórios Gerais")
-        st.write("Relatórios por tipo, data, vara etc. (exemplo a seguir)")
-        df = pd.DataFrame(dados["processos"])
-        st.bar_chart(df['vara'].value_counts())
+    # --- FILTROS ---
+    st.sidebar.subheader("Filtros - Página Inicial")
 
-    # --- Histórico ---
-    if selecionado == "Histórico":
-        st.subheader("Histórico do Processo")
-        numero = st.text_input("Informe o número do processo:")
-        if numero:
-            historico = []
-            for aba in ["processos", "movimentacoes", "despachos"]:
-                historico += [f"{aba.title()}: {d}" for d in dados[aba] if d.get("numero") == numero]
-            st.write("\n\n".join(historico) if historico else "Nenhum histórico encontrado.")
+    prazo_filtro = st.sidebar.slider("Prazos a vencer nos próximos dias:", min_value=1, max_value=60, value=30)
 
-    # --- Usuários (somente se master) ---
-    if selecionado == "Usuários":
-        st.subheader("Gerenciar Usuários")
-        with st.form("form_usuario"):
-            novo_usuario = st.text_input("Novo Usuário")
-            nova_senha = st.text_input("Senha", type="password")
-            btn = st.form_submit_button("Cadastrar Usuário")
-            if btn:
-                dados["usuarios"].append({"usuario": novo_usuario, "senha": nova_senha})
-                salvar_dados(ARQUIVOS["usuarios"], dados["usuarios"])
-                st.success("Usuário cadastrado!")
+    tribunais_oficiais = ["JF", "TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6"]
+    tribunais_selecionados = st.sidebar.multiselect("Tribunais para o quantitativo:", options=tribunais_oficiais, default=tribunais_oficiais)
 
-        st.write(pd.DataFrame(dados["usuarios"]))
+    st.sidebar.markdown("---")
+    st.sidebar.write(f"Usuário logado: **{st.session_state.usuario_logado}**")
 
-    # Rodapé
-    st.markdown("<hr><center><sub>Desenvolvido por Igor Sansone - Setor de Secretaria</sub></center>", unsafe_allow_html=True)
+    st.subheader("📅 Próximas Reuniões")
 
+    if agenda:
+        df_agenda = pd.DataFrame(agenda)
+        df_agenda["Data"] = pd.to_datetime(df_agenda["Data"], format="%d/%m/%Y", errors='coerce')
+        proximas = df_agenda[df_agenda["Data"] >= hoje].sort_values("Data")
+
+        if proximas.empty:
+            st.info("Nenhuma reunião agendada para os próximos dias.")
+        else:
+            prox_reuniao = proximas.iloc[0]
+            dias_para_reuniao = (prox_reuniao["Data"] - hoje).days
+            st.markdown(f"**Próxima reunião:** {prox_reuniao['Evento']} em {prox_reuniao['Data'].strftime('%d/%m/%Y')} ({dias_para_reuniao} dias restantes)")
+            st.write(prox_reuniao["Descrição"])
+
+            if len(proximas) > 1:
+                st.table(proximas.iloc[1:][["Data", "Evento", "Descrição"]].reset_index(drop=True))
+    else:
+        st.info("Nenhuma reunião cadastrada.")
+
+    st.markdown("---")
+
+    st.subheader("⏳ Prazos a Vencer")
+
+    if movs and processos:
+        df_movs = pd.DataFrame(movs)
+        df_movs["Prazo"] = pd.to_datetime(df_movs["Prazo"], format="%d/%m/%Y", errors='coerce')
+
+        filtro_prazo_final = hoje + pd.Timedelta(days=prazo_filtro)
+        prazos_abertos = df_movs[(df_movs["Prazo"].notnull()) & (df_movs["Prazo"] >= hoje) & (df_movs["Prazo"] <= filtro_prazo_final)].copy()
+
+        if prazos_abertos.empty:
+            st.info(f"Nenhum prazo vencendo nos próximos {prazo_filtro} dias.")
+        else:
+            df_proc = pd.DataFrame(processos)
+            df_proc["Número"] = df_proc["Número"].astype(str)
+            prazos_abertos["Número"] = prazos_abertos["Número"].astype(str)
+            df_join = prazos_abertos.merge(df_proc, on="Número", how="left", suffixes=("_mov", "_proc"))
+
+            df_join = df_join.sort_values("Prazo")
+            df_join["Dias Restantes"] = (df_join["Prazo"] - hoje).dt.days
+
+            def cor_prazo(dias):
+                if dias > 15:
+                    return "background-color: #d4edda"  # verde claro
+                elif 10 <= dias <= 15:
+                    return "background-color: #fff3cd"  # amarelo claro
+                else:
+                    return "background-color: #f8d7da"  # vermelho claro
+
+            st.dataframe(
+                df_join[["Número", "Assunto", "Prazo", "Descrição", "Dias Restantes"]]
+                .style.applymap(lambda v: cor_prazo(v), subset=["Dias Restantes"])
+            )
+    else:
+        st.info("Nenhuma movimentação ou processo cadastrado.")
+
+    st.markdown("---")
+
+    st.subheader("📊 Quantitativo de Processos por Tribunal")
+
+    if processos:
+        df = pd.DataFrame(processos)
+        if "Local Ajuizamento" in df.columns:
+            df_filtrado = df[df["Local Ajuizamento"].isin(tribunais_selecionados)]
+            contagem = df_filtrado["Local Ajuizamento"].value_counts().reindex(tribunais_selecionados, fill_value=0)
+            contagem_df = contagem.reset_index()
+            contagem_df.columns = ["Tribunal", "Quantidade"]
+
+            cols = st.columns(len(contagem_df))
+            cores = ["#007BFF", "#28A745", "#FFC107", "#DC3545", "#17A2B8", "#6F42C1", "#FD7E14"]
+
+            for i, row in contagem_df.iterrows():
+                with cols[i]:
+                    st.markdown(f"""
+                        <div style="background-color: {cores[i % len(cores)]}; padding: 20px; border-radius: 10px; text-align: center; color: white;">
+                            <h3>{row['Quantidade']}</h3>
+                            <p>{row['Tribunal']}</p>
+                        </div>
+                    """, unsafe_allow_html=True)
+
+            chart = alt.Chart(contagem_df).mark_bar().encode(
+                x=alt.X("Tribunal", sort=tribunais_selecionados),
+                y="Quantidade",
+                tooltip=["Tribunal", "Quantidade"],
+                color=alt.Color("Quantidade", scale=alt.Scale(scheme="blues"))
+            ).properties(width=600, height=300)
+            st.altair_chart(chart, use_container_width=True)
+        else:
+            st.warning("Coluna 'Local Ajuizamento' não encontrada nos processos.")
+    else:
+        st.info("Nenhum processo cadastrado.")
+
+def cadastro_processo():
+    st.title("📝 Cadastro / Edição de Processo")
+
+    if "autores" not in st.session_state:
+        st.session_state.autores = [{"nome": "", "cpf_cnpj": ""}]
+    if "reus" not in st.session_state:
+        st.session_state.reus = [{"nome": "", "cpf_cnpj": ""}]
+
+    st.write("### Parte Autora")
+    for i in range(len(st.session_state.autores)):
+        st.session_state.autores[i]["nome"] = st.text_input(f"Nome do Autor {i+1}", value=st.session_state.autores[i]["nome"], key=f"autor_nome_{i}")
+        st.session_state.autores[i]["cpf_cnpj"] = st.text_input(f"CPF/CNPJ do Autor {i+1}", value=st.session_state.autores[i]["cpf_cnpj"], key=f"autor_cpf_{i}")
+    if st.button("Adicionar Autor"):
+        st.session_state.autores.append({"nome": "", "cpf_cnpj": ""})
+
+    st.write("### Parte Ré")
+    for i in range(len(st.session_state.reus)):
+        st.session_state.reus[i]["nome"] = st.text_input(f"Nome do Réu {i+1}", value=st.session_state.reus[i]["nome"], key=f"reu_nome_{i}")
+        st.session_state.reus[i]["cpf_cnpj"] = st.text_input(f"CPF/CNPJ do Réu {i+1}", value=st.session_state.reus[i]["cpf_cnpj"], key=f"reu_cpf_{i}")
+    if st.button("Adicionar Réu"):
+        st.session_state.reus.append({"nome": "", "cpf_cnpj": ""})
+
+    numero_default = st.session_state.get("numero_processo", "")
+    assunto_default = st.session_state.get("assunto", "")
+    data_distribuicao_default = st.session_state.get("data_distribuicao", datetime.today())
+    tipo_acao_default = st.session_state.get("tipo_acao", tipos_acao[0])
+    recurso_default = st.session_state.get("recurso", recursos[0])
+    local_ajuizamento_default = st.session_state.get("local_ajuizamento", locais_ajuizamento[0])
+    turma_vara_plenario_default =
+    turma_vara_plenario_default = st.session_state.get("turma_vara_plenario", "")
+    assunto = st.text_input("Assunto do Processo", value=assunto_default)
+    numero = st.text_input("Número do Processo", value=numero_default)
+    data_distribuicao = st.date_input("Data de Distribuição", value=data_distribuicao_default)
+    tipo_acao = st.selectbox("Tipo de Ação", tipos_acao, index=tipos_acao.index(tipo_acao_default) if tipo_acao_default in tipos_acao else 0)
+    recurso = st.selectbox("Recurso", recursos, index=recursos.index(recurso_default) if recurso_default in recursos else 0)
+    local_ajuizamento = st.selectbox("Local de Ajuizamento", locais_ajuizamento, index=locais_ajuizamento.index(local_ajuizamento_default) if local_ajuizamento_default in locais_ajuizamento else 0)
+    turma_vara_plenario = st.text_input("Turma/Vara/Plenário", value=turma_vara_plenario_default)
+
+    comissao_default = st.session_state.get("comissao", "")
+    comissao = st.text_input("Comissão", value=comissao_default)
+
+    data_cadastro = datetime.now().strftime("%d/%m/%Y %H:%M")
+
+    if st.button("Salvar Processo"):
+        # Validação simples
+        if numero.strip() == "":
+            st.error("O número do processo é obrigatório.")
+        else:
+            # Montar dicionário processo
+            novo_processo = {
+                "Número": numero.strip(),
+                "Assunto": assunto.strip(),
+                "Data Distribuição": data_distribuicao.strftime("%d/%m/%Y"),
+                "Tipo Ação": tipo_acao,
+                "Recurso": recurso,
+                "Local Ajuizamento": local_ajuizamento,
+                "Turma/Vara/Plenário": turma_vara_plenario.strip(),
+                "Comissão": comissao.strip(),
+                "Autores": st.session_state.autores,
+                "Réus": st.session_state.reus,
+                "Data Cadastro": data_cadastro
+            }
+            # Atualizar ou inserir novo processo
+            processos = st.session_state.processos
+            # Verifica se processo já existe para atualizar
+            achou = False
+            for idx, proc in enumerate(processos):
+                if proc["Número"] == numero.strip():
+                    processos[idx] = novo_processo
+                    achou = True
+                    break
+            if not achou:
+                processos.append(novo_processo)
+
+            st.session_state.processos = processos
+            salvar_dados(ARQ_PROCESSOS, processos)
+            st.success("Processo salvo com sucesso!")
+            forcar_rerun()
+
+    # Mostrar lista de processos
+    st.markdown("---")
+    st.subheader("Processos Cadastrados")
+    if st.session_state.processos:
+        df = pd.DataFrame(st.session_state.processos)
+        st.dataframe(df)
+    else:
+        st.info("Nenhum processo cadastrado.")
+
+# Aba Jurisprudência (mantida do código original com persistência)
+def cadastro_jurisprudencia():
+    st.title("📚 Cadastro de Jurisprudência")
+    with st.form("form_jurisprudencia"):
+        tribunal = st.selectbox("Tribunal", ["", "TRF", "JF"])
+        ementa = st.text_area("Ementa")
+        referencia = st.text_input("Referência")
+        submitted = st.form_submit_button("Salvar Jurisprudência")
+        if submitted:
+            if tribunal == "" or ementa.strip() == "" or referencia.strip() == "":
+                st.error("Todos os campos são obrigatórios.")
+            else:
+                jurisprudencias = st.session_state.jurisprudencias
+                jurisprudencias.append({"Tribunal": tribunal, "Ementa": ementa.strip(), "Referência": referencia.strip()})
+                st.session_state.jurisprudencias = jurisprudencias
+                salvar_dados(ARQ_JURISPRUDENCIAS, jurisprudencias)
+                st.success("Jurisprudência salva com sucesso!")
+                forcar_rerun()
+    st.markdown("---")
+    st.subheader("Jurisprudências Cadastradas")
+    if st.session_state.jurisprudencias:
+        st.dataframe(pd.DataFrame(st.session_state.jurisprudencias))
+    else:
+        st.info("Nenhuma jurisprudência cadastrada.")
+
+# Aba Despachos (mantida)
+def cadastro_despachos():
+    st.title("📄 Despachos")
+    with st.form("form_despacho"):
+        numero_processo = st.text_input("Número do Processo para Despacho")
+        despacho_texto = st.text_area("Texto do Despacho")
+        data_despacho = datetime.now().strftime("%d/%m/%Y %H:%M")
+        submitted = st.form_submit_button("Salvar Despacho")
+        if submitted:
+            if numero_processo.strip() == "" or despacho_texto.strip() == "":
+                st.error("Número do processo e texto do despacho são obrigatórios.")
+            else:
+                despachos = st.session_state.despachos
+                despachos.append({"Número": numero_processo.strip(), "Texto": despacho_texto.strip(), "Data": data_despacho})
+                st.session_state.despachos = despachos
+                salvar_dados(ARQ_DESPACHOS, despachos)
+                st.success("Despacho salvo com sucesso!")
+                forcar_rerun()
+    st.markdown("---")
+    st.subheader("Despachos Cadastrados")
+    if st.session_state.despachos:
+        st.dataframe(pd.DataFrame(st.session_state.despachos))
+    else:
+        st.info("Nenhum despacho cadastrado.")
+
+# Aba Movimentações (mantida)
+def cadastro_movimentacoes():
+    st.title("🔁 Movimentações")
+    with st.form("form_movimentacao"):
+        numero_processo = st.text_input("Número do Processo")
+        descricao = st.text_area("Descrição da Movimentação")
+        prazo = st.date_input("Prazo")
+        submitted = st.form_submit_button("Salvar Movimentação")
+        if submitted:
+            if numero_processo.strip() == "" or descricao.strip() == "":
+                st.error("Número do processo e descrição são obrigatórios.")
+            else:
+                movimentacoes = st.session_state.movimentacoes
+                movimentacoes.append({"Número": numero_processo.strip(), "Descrição": descricao.strip(), "Prazo": prazo.strftime("%d/%m/%Y")})
+                st.session_state.movimentacoes = movimentacoes
+                salvar_dados(ARQ_MOVIMENTACOES, movimentacoes)
+                st.success("Movimentação salva com sucesso!")
+                forcar_rerun()
+    st.markdown("---")
+    st.subheader("Movimentações Cadastradas")
+    if st.session_state.movimentacoes:
+        st.dataframe(pd.DataFrame(st.session_state.movimentacoes))
+    else:
+        st.info("Nenhuma movimentação cadastrada.")
+
+# Aba Agenda (mantida)
+def cadastro_agenda():
+    st.title("🗓️ Agenda de Reuniões e Eventos")
+    with st.form("form_agenda"):
+        titulo = st.text_input("Título do Evento")
+        data_evento = st.date_input("Data")
+        hora = st.text_input("Hora (ex: 19:00)")
+        local = st.text_input("Local")
+        participante = st.text_input("Participante (Representante/Advogado)")
+        modalidade = st.selectbox("Modalidade", ["Presencial", "Online"])
+        submitted = st.form_submit_button("Salvar Evento")
+        if submitted:
+            if titulo.strip() == "" or local.strip() == "" or participante.strip() == "":
+                st.error("Título, local e participante são obrigatórios.")
+            else:
+                agenda = st.session_state.agenda
+                agenda.append({
+                    "Evento": titulo.strip(),
+                    "Data": data_evento.strftime("%d/%m/%Y"),
+                    "Hora": hora.strip(),
+                    "Local": local.strip(),
+                    "Participante": participante.strip(),
+                    "Modalidade": modalidade
+                })
+                st.session_state.agenda = agenda
+                salvar_dados(ARQ_AGENDA, agenda)
+                st.success("Evento salvo com sucesso!")
+                forcar_rerun()
+    st.markdown("---")
+    st.subheader("Eventos Agendados")
+    if st.session_state.agenda:
+        st.dataframe(pd.DataFrame(st.session_state.agenda))
+    else:
+        st.info("Nenhum evento agendado.")
+
+# Aba Histórico (mantida)
+def visualizar_historico():
+    st.title("📜 Histórico do Processo")
+    numero_busca = st.text_input("Informe o número do processo para ver histórico")
+    if numero_busca.strip() != "":
+        historico = []
+        # Busca movimentações
+        for mov in st.session_state.movimentacoes:
+            if mov.get("Número") == numero_busca.strip():
+                historico.append({"Tipo": "Movimentação", **mov})
+        # Busca despachos
+        for desp in st.session_state.despachos:
+            if desp.get("Número") == numero_busca.strip():
+                historico.append({"Tipo": "Despacho", **desp})
+        # Ordenar pelo campo Data ou Prazo
+        def extrair_data(item):
+            if "Prazo" in item:
+                try:
+                    return datetime.strptime(item["Prazo"], "%d/%m/%Y")
+                except:
+                    return datetime.min
+            elif "Data" in item:
+                try:
+                    return datetime.strptime(item["Data"], "%d/%m/%Y %H:%M")
+                except:
+                    try:
+                        return datetime.strptime(item["Data"], "%d/%m/%Y")
+                    except:
+                        return datetime.min
+            return datetime.min
+
+        historico = sorted(historico, key=extrair_data)
+        if historico:
+            df = pd.DataFrame(historico)
+            st.dataframe(df)
+        else:
+            st.info("Nenhum histórico encontrado para este processo.")
+
+# Aba Gerenciamento de Usuários (mantida)
+def gerenciamento_usuarios():
+    st.title("👥 Gerenciamento de Usuários")
+    with st.form("form_usuario"):
+        nome = st.text_input("Nome")
+        usuario = st.text_input("Usuário (login)")
+        senha = st.text_input("Senha", type="password")
+        perfil = st.selectbox("Perfil", ["master", "normal"])
+        submitted = st.form_submit_button("Salvar Usuário")
+        if submitted:
+            if nome.strip() == "" or usuario.strip() == "" or senha.strip() == "":
+                st.error("Nome, usuário e senha são obrigatórios.")
+            else:
+                usuarios = st.session_state.usuarios
+                # Atualiza se já existir
+                achou = False
+                for idx, u in enumerate(usuarios):
+                    if u["usuario"] == usuario.strip():
+                        usuarios[idx] = {"nome": nome.strip(), "usuario": usuario.strip(), "senha": senha.strip(), "permissao": perfil}
+                        achou = True
+                        break
+                if not achou:
+                    usuarios.append({"nome": nome.strip(), "usuario": usuario.strip(), "senha": senha.strip(), "permissao": perfil})
+                st.session_state.usuarios = usuarios
+                salvar_dados(ARQ_USUARIOS, usuarios)
+                st.success("Usuário salvo com sucesso!")
+                forcar_rerun()
+    st.markdown("---")
+    st.subheader("Usuários Cadastrados")
+    if st.session_state.usuarios:
+        df_usuarios = pd.DataFrame(st.session_state.usuarios)
+        st.dataframe(df_usuarios)
+    else:
+        st.info("Nenhum usuário cadastrado.")
+
+# --- Fluxo principal ---
+
+if not st.session_state.logado:
+    tela_login()
 else:
-    st.warning("Faça login para acessar o sistema.")
+    with st.sidebar:
+        escolha = option_menu("Menu", [
+            "Início", "Cadastro Processo", "Jurisprudência",
+            "Despachos", "Movimentações", "Agenda", "Histórico", "Usuários", "Sair"
+        ],
+        icons=[
+            "house", "file-earmark-text", "book",
+            "file-text", "shuffle", "calendar", "clock-history", "people", "box-arrow-right"
+        ],
+        menu_icon="cast", default_index=0)
+
+    if escolha == "Início":
+        inicio()
+    elif escolha == "Cadastro Processo":
+        cadastro_processo()
+    elif escolha == "Jurisprudência":
+        cadastro_jurisprudencia()
+    elif escolha == "Despachos":
+        cadastro_despachos()
+    elif escolha == "Movimentações":
+        cadastro_movimentacoes()
+    elif escolha == "Agenda":
+        cadastro_agenda()
+    elif escolha == "Histórico":
+        visualizar_historico()
+    elif escolha == "Usuários":
+        if usuario_eh_master():
+            gerenciamento_usuarios()
+        else:
+            st.error("Acesso negado. Apenas usuários master podem acessar esta seção.")
+    elif escolha == "Sair":
+        st.session_state.logado = False
+        st.session_state.usuario_logado = None
+        st.experimental_rerun()
+
+# Rodapé fixo
+st.markdown("""
+<div class="footer">
+Desenvolvido por Igor Sansone - Setor de Secretaria
+</div>
+""", unsafe_allow_html=True)
