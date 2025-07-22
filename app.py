@@ -6,6 +6,13 @@ from datetime import datetime
 from streamlit_option_menu import option_menu
 
 st.set_page_config(layout="wide")
+[
+  {
+    "usuario": "admin",
+    "senha": "123456"
+  }
+]
+
 
 # Funções de utilidade para carregar/salvar dados
 def carregar_dados(arquivo, padrao):
