@@ -101,14 +101,24 @@ recursos = [
 locais_ajuizamento = ["", "JF", "TRF1", "TRF2", "TRF3", "TRF4", "TRF5", "TRF6", "STJ", "STF"]
 
 # Inicialização de session state para login e demais variáveis que seu código usa
-if "logado" not in st.session_state:
-    st.session_state.logado = False
-if "usuario_logado" not in st.session_state:
-    st.session_state.usuario_logado = None
-if "autores" not in st.session_state:
-    st.session_state.autores = [{"nome": "", "cpf_cnpj": ""}]
-if "reus" not in st.session_state:
-    st.session_state.reus = [{"nome": "", "cpf_cnpj": ""}]
+if "usuarios" not in st.session_state:
+    st.session_state.usuarios = [
+        {"nome": "Admin", "usuario": "admin", "senha": "admin123", "permissao": "master"},
+        {"nome": "Usuário", "usuario": "user", "senha": "123", "permissao": "normal"}
+    ]
+
+# Garantir que todo usuário tenha a chave 'permissao' (default = 'normal')
+for u in st.session_state.usuarios:
+    if "permissao" not in u:
+        u["permissao"] = "normal"
+
+def usuario_eh_master():
+    user = st.session_state.usuario_logado
+    for u in st.session_state.usuarios:
+        if u.get("usuario") == user:
+            return u.get("permissao", "normal") == "master"
+    return False
+
 
 # Funções básicas de autenticação (mantidas)
 def validar_login(usuario, senha):
