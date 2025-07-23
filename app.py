@@ -42,7 +42,6 @@ def login(usuario, senha):
     return False
 
 def usuario_eh_master():
-    # Apenas o usuário igorsansone com permissão master é master
     return st.session_state.usuario.lower() == "igorsansone"
 
 def salvar_dados():
@@ -106,6 +105,7 @@ st.sidebar.markdown("---")
 st.sidebar.caption("Desenvolvido por Igor Sansone - Setor de Secretaria")
 
 # --- Funções das abas ---
+
 def aba_inicio():
     st.title("📊 Painel do Sistema Jurídico")
     st.markdown(f"Bem-vindo(a), **{st.session_state.usuario}**!")
@@ -120,6 +120,7 @@ def aba_cadastrar_processo():
         numero = st.text_input("Número do Processo")
         vara = st.text_input("Vara ou Plenário")
         partes = st.text_input("Partes (autor, réu)")
+        tipo_acao = st.selectbox("Tipo de Ação", ["Trabalhista", "Cível", "Administrativa", "Outros"])
         status = st.selectbox("Status", ["Em andamento", "Concluído", "Suspenso"])
         data = st.date_input("Data de Cadastro", datetime.date.today())
         enviar = st.form_submit_button("Cadastrar")
@@ -132,6 +133,7 @@ def aba_cadastrar_processo():
                 "numero": numero.strip(),
                 "vara": vara.strip(),
                 "partes": partes.strip(),
+                "tipo_acao": tipo_acao,
                 "status": status,
                 "data": str(data)
             }
@@ -149,6 +151,8 @@ def aba_movimentacoes():
 
     with st.form("form_nova_movimentacao"):
         proc = st.text_input("Nº Processo")
+        tipo_mov = st.selectbox("Tipo de Movimentação", ["Petição", "Despacho", "Decisão", "Audiência", "Outro"])
+        responsavel = st.text_input("Responsável pela Movimentação")
         mov = st.text_area("Descrição da movimentação")
         dt = st.date_input("Data", datetime.date.today())
         enviar = st.form_submit_button("Cadastrar")
@@ -157,7 +161,13 @@ def aba_movimentacoes():
             if proc.strip() == "" or mov.strip() == "":
                 st.error("Número do processo e descrição são obrigatórios.")
                 return
-            nova_mov = {"processo": proc.strip(), "descricao": mov.strip(), "data": str(dt)}
+            nova_mov = {
+                "processo": proc.strip(),
+                "tipo_movimentacao": tipo_mov,
+                "responsavel": responsavel.strip(),
+                "descricao": mov.strip(),
+                "data": str(dt)
+            }
             st.session_state.movimentacoes.append(nova_mov)
             salvar_dados()
             st.success("Movimentação salva!")
@@ -174,13 +184,21 @@ def aba_despachos():
         proc = st.text_input("Nº Processo")
         conteudo = st.text_area("Conteúdo do despacho")
         dt = st.date_input("Data", datetime.date.today())
+        quem_cadastrou = st.text_input("Quem cadastrou")
+        quem_despachou = st.text_input("Quem despachou")
         enviar = st.form_submit_button("Emitir Despacho")
 
         if enviar:
             if proc.strip() == "" or conteudo.strip() == "":
                 st.error("Número do processo e conteúdo são obrigatórios.")
                 return
-            novo_despacho = {"processo": proc.strip(), "despacho": conteudo.strip(), "data": str(dt)}
+            novo_despacho = {
+                "processo": proc.strip(),
+                "despacho": conteudo.strip(),
+                "data": str(dt),
+                "quem_cadastrou": quem_cadastrou.strip(),
+                "quem_despachou": quem_despachou.strip()
+            }
             st.session_state.despachos.append(novo_despacho)
             salvar_dados()
             st.success("Despacho emitido!")
@@ -243,7 +261,8 @@ def aba_relatorios():
             st.info("Nenhum processo cadastrado.")
         else:
             filtro_status = st.multiselect("Filtrar por Status", options=df['status'].unique(), default=list(df['status'].unique()))
-            df_filtrado = df[df['status'].isin(filtro_status)]
+            filtro_tipo_acao = st.multiselect("Filtrar por Tipo de Ação", options=df['tipo_acao'].unique(), default=list(df['tipo_acao'].unique()))
+            df_filtrado = df[(df['status'].isin(filtro_status)) & (df['tipo_acao'].isin(filtro_tipo_acao))]
             st.dataframe(df_filtrado)
 
     elif aba_sel == "Movimentações":
@@ -252,10 +271,12 @@ def aba_relatorios():
             st.info("Nenhuma movimentação registrada.")
         else:
             proc_filter = st.text_input("Filtrar por Número do Processo")
+            tipo_mov_filter = st.multiselect("Filtrar por Tipo de Movimentação", options=df['tipo_movimentacao'].unique(), default=list(df['tipo_movimentacao'].unique()))
             if proc_filter:
                 df_filtrado = df[df['processo'].str.contains(proc_filter, case=False, na=False)]
+                df_filtrado = df_filtrado[df_filtrado['tipo_movimentacao'].isin(tipo_mov_filter)]
             else:
-                df_filtrado = df
+                df_filtrado = df[df['tipo_movimentacao'].isin(tipo_mov_filter)]
             st.dataframe(df_filtrado)
 
     elif aba_sel == "Despachos":
@@ -288,7 +309,6 @@ def aba_relatorios():
 
 def aba_gerenciar_usuarios():
     st.title("👥 Gerenciar Usuários (Master Only)")
-    # Exibir tabela com usuários (somente login e permissão, não exibir senhas para segurança)
     usuarios_visiveis = [{"usuario": u["usuario"], "permissao": u["permissao"]} for u in usuarios_db]
     st.write(pd.DataFrame(usuarios_visiveis))
 
@@ -302,7 +322,6 @@ def aba_gerenciar_usuarios():
             if novo_user.strip() == "" or nova_senha.strip() == "":
                 st.error("Usuário e senha são obrigatórios.")
                 return
-            # Verificar se usuário já existe
             if any(u["usuario"].lower() == novo_user.lower() for u in usuarios_db):
                 st.error("Usuário já existe.")
                 return
