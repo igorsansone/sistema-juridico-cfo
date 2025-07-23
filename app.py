@@ -28,7 +28,7 @@ if "agenda" not in st.session_state:
 
 # --- Banco de dados simulado ---
 usuarios_db = [
-    {"usuario": "igor sansone", "senha": "30101987", "permissao": "master"},
+    {"usuario": "igorsansone", "senha": "30101987", "permissao": "master"},
     {"usuario": "secretaria", "senha": "1234", "permissao": "normal"}
 ]
 
@@ -42,10 +42,8 @@ def login(usuario, senha):
     return False
 
 def usuario_eh_master():
-    for u in usuarios_db:
-        if u["usuario"] == st.session_state.usuario:
-            return u.get("permissao", "") == "master"
-    return False
+    # Apenas o usuário igorsansone com permissão master é master
+    return st.session_state.usuario.lower() == "igorsansone"
 
 def salvar_dados():
     dados = {
@@ -60,13 +58,16 @@ def salvar_dados():
 
 def carregar_dados():
     if os.path.exists("dados.json"):
-        with open("dados.json", "r", encoding='utf-8') as f:
-            dados = json.load(f)
-            st.session_state.processos = dados.get("processos", [])
-            st.session_state.movimentacoes = dados.get("movimentacoes", [])
-            st.session_state.despachos = dados.get("despachos", [])
-            st.session_state.jurisprudencias = dados.get("jurisprudencias", [])
-            st.session_state.agenda = dados.get("agenda", [])
+        try:
+            with open("dados.json", "r", encoding='utf-8') as f:
+                dados = json.load(f)
+                st.session_state.processos = dados.get("processos", [])
+                st.session_state.movimentacoes = dados.get("movimentacoes", [])
+                st.session_state.despachos = dados.get("despachos", [])
+                st.session_state.jurisprudencias = dados.get("jurisprudencias", [])
+                st.session_state.agenda = dados.get("agenda", [])
+        except Exception as e:
+            st.error(f"Erro ao carregar dados: {e}")
 
 carregar_dados()
 
@@ -287,7 +288,9 @@ def aba_relatorios():
 
 def aba_gerenciar_usuarios():
     st.title("👥 Gerenciar Usuários (Master Only)")
-    st.write(pd.DataFrame(usuarios_db))
+    # Exibir tabela com usuários (somente login e permissão, não exibir senhas para segurança)
+    usuarios_visiveis = [{"usuario": u["usuario"], "permissao": u["permissao"]} for u in usuarios_db]
+    st.write(pd.DataFrame(usuarios_visiveis))
 
     with st.form("form_novo_usuario"):
         novo_user = st.text_input("Novo Usuário")
